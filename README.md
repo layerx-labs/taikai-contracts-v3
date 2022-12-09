@@ -1,13 +1,21 @@
-# Sample Hardhat Project
+# TAIKAI V3 - Smart Contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+* TKAI.sol -  Fungible Token used on the Hackathon Platform
 
-Try running some of the following tasks:
+## How to Compile 
 
 ```shell
-npx hardhat help
+npx hardhat compile
+```
+
+## How to run Unit Tests
+
+```shell
 npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
+```
+
+## How to Deploy 
+
+```shell
+npx hardhat run --network <your-network> scripts/deploy.js
 ```

@@ -11,14 +11,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract TKAI is ERC20PresetFixedSupply, Ownable {
     
     // Maximum supply is 300M TKAI
-    uint256 private constant _totalSupply = 300000000 *(10 ** 18);
+    uint256 private constant _totalSupply = 300000000 *(10 ** 6);
 
     constructor(
         string memory _name,
         string memory _symbol,
         address owner
-        ) ERC20PresetFixedSupply(_name, _symbol, _totalSupply, owner ) {
-            transferOwnership(owner);
+        ) 
+        ERC20PresetFixedSupply(_name, _symbol, _totalSupply, owner ) 
+        Ownable()
+        {
+            transferOwnership(owner);        
         }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
 
 }
