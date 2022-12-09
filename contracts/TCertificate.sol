@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 
 /*
- * A BountyToken is a non-transferable NFT that tracks the record of participation of a certain address on a
- * @INetworkV2.Bounty
  */
 contract TAIKAICertificate is ERC721URIStorage, Ownable {
 
@@ -27,7 +25,7 @@ contract TAIKAICertificate is ERC721URIStorage, Ownable {
      * Assert rules,
      *  msg.sender must be dispatcher
      */
-    function mintCertificate(address to, string memory uri ) external onlyOwner  {
+    function mint(address to, string memory uri ) external onlyOwner  {
         uint256 id = _nextMintId;
         _safeMint(to, id);
         _setTokenURI(id, uri);
