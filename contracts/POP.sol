@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
 /*
- * Proof of Participatoon 
+ * Proof of Participation 
  */
 contract POP is ERC721URIStorage, Ownable, Pausable {
     
@@ -24,12 +24,6 @@ contract POP is ERC721URIStorage, Ownable, Pausable {
         transferOwnership(owner);        
     }
     
-    /*
-     * Alias to safeMint
-     *
-     * Assert rules,
-     *  msg.sender must be dispatcher
-     */
     function mint(address to, string memory uri ) public virtual onlyOwner whenNotPaused {
         uint256 id = _tokenIdTracker.current();
         _safeMint(to, id);

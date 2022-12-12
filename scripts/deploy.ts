@@ -19,9 +19,16 @@ async function main() {
   for (const account of accounts) {
     if(account.address != owner ) {
       // Transfer 1M to each account
+      console.log("Transferring 1M to ", account.address);
       await kai.transfer(account.address, 1000000000000);
     }    
   }
+
+  // Deploy POP Contract 
+  const POP = await ethers.getContractFactory("POP");
+  const pop = await POP.deploy("TAIKAI Proof of Participation", "POP", owner);
+  await pop.deployed();
+  console.log("POP Smart Contract deployed to:", pop.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

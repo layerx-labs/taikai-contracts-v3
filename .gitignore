@@ -8,4 +8,5 @@ typechain-types
 # Hardhat files
 cache
 artifacts
-
+taikai-contracts-v3-1.0.0.tgz
+.DS_Store
