@@ -15,6 +15,8 @@ contract POP is ERC721URIStorage, Ownable, Pausable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIdTracker;
 
+    /**
+     */
     constructor(string memory name_, string memory symbol_, address owner) 
         ERC721URIStorage() 
         ERC721(name_, symbol_)
@@ -24,7 +26,7 @@ contract POP is ERC721URIStorage, Ownable, Pausable {
         transferOwnership(owner);        
     }
     
-    function mint(address to, string memory uri ) public virtual onlyOwner whenNotPaused {
+    function mint(address to, string memory uri ) external virtual onlyOwner whenNotPaused {
         uint256 id = _tokenIdTracker.current();
         _safeMint(to, id);
         _setTokenURI(id, uri);
