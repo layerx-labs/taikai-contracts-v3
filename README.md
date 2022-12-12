@@ -1,7 +1,7 @@
 # TAIKAI V3 - Smart Contracts
 
-* TKAI.sol - Fungible Token used on the Hackathon Platform
-* POP.sol - Proof of Participation NFT 
+* **TKAI.sol** - Fungible Token used on the Hackathon Platform
+* **POP.sol** - Proof of Participation NFT 
 
 ## How to Compile 
 

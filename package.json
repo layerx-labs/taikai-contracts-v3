@@ -2,6 +2,10 @@
   "name": "taikai-contracts-v3",
   "version": "1.0.0",
   "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taikai/taikai-contracts-v3.git"
+  },
   "files": [
     "artifacts",
     "scripts",
@@ -14,9 +18,16 @@
     "deploy:gaia": "npx hardhat run --network gaia scripts/deploy.ts",
     "deploy:eva": "npx hardhat run --network eva scripts/deploy.ts",
     "deploy:atena": "npx hardhat run --network atena scripts/deploy.ts",    
+    "deploy:heras": "npx hardhat run --network heras scripts/deploy.ts",    
     "ganache:dev": "ganache -h 0.0.0.0 -p 8545 -a 50  -s 0x6d2119524d65ea0b15b214ef260d3acdf8ca0ec6ec68045b5785d970f5ad97bd3d0025d212e625a8a21920852cc165c10faa6d8387a0c2530d1ffc0d265d92935749"
   },
-  "author": "",
+  "author": "Helder Vasconcelos <helder@taikai.network>",
+  "contributors": [
+    {
+      "name": "Helder Vasconcelos",
+      "email": "helder@taikai.network"
+    }
+  ],
   "license": "ISC",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.0",
