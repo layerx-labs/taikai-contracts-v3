@@ -7,13 +7,13 @@
 
 ```shell
 npm install 
-npx hardhat compile
+npm run compile
 ```
 
 ## How to run Unit Tests
 
 ```shell
-npx hardhat test
+npm run test
 ```
 
 ## How to Deploy 

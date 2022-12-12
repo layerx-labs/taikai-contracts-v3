@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract TKAI is ERC20PresetFixedSupply, ERC20Pausable,  Ownable {
     
     // Maximum supply is 300M TKAI
-    uint256 private constant _totalSupply = 300000000 *(10 ** 6);
+    uint256 private constant _totalSupply = 300_000_000_000_000;
 
     constructor(
         string memory _name,

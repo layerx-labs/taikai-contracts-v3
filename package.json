@@ -12,6 +12,8 @@
     "README.md"
   ],
   "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
     "deploy:local": "npx hardhat run --network hardhat scripts/deploy.ts",
     "deploy:vp": "npx hardhat run --network vp scripts/deploy.ts",
     "deploy:eden": "npx hardhat run --network eden scripts/deploy.ts",
