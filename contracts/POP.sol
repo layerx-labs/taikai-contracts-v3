@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.9;
 pragma abicoder v2;
 
@@ -5,9 +6,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+
 /*
+ * Proof of Participatoon 
  */
-contract TAIKAICertificate is ERC721URIStorage, Ownable, Pausable {
+contract POP is ERC721URIStorage, Ownable, Pausable {
     
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIdTracker;
@@ -46,8 +49,8 @@ contract TAIKAICertificate is ERC721URIStorage, Ownable, Pausable {
         _unpause();
     }
 
-    /** Certificate is not transferable */
-    function transferFrom(address from, address to, uint256 tokenId) public override { revert(); }
-    function safeTransferFrom(address from, address to, uint256 tokenId) public override { revert(); }
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public override { revert(); }
+    /** POP is not transferable */
+    function transferFrom(address, address, uint256) public pure override { revert(); }
+    function safeTransferFrom(address, address, uint256) public pure override { revert(); }
+    function safeTransferFrom(address, address, uint256, bytes memory) public pure override { revert(); }
 }
