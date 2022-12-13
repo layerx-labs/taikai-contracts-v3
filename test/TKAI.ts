@@ -56,7 +56,7 @@ describe("TKAI", function () {
           STAGING_ACCOUNTS_ADDRESSES[0],
           STAGING_ACCOUNTS_ADDRESSES[1],
           1_000_000_000_000
-        ); // We accept any value as `when` arg
+        );
     });
   });
 });
