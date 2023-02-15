@@ -24,7 +24,7 @@ async function main() {
   }
   // Deploy POP Contract
   const POP = await ethers.getContractFactory("POP");
-  const pop = await POP.deploy("TAIKAI Proof of Participation", "POP", owner);
+  const pop = await POP.deploy("TAIKAI PoP", "POP", owner);
   await pop.deployed();
   console.log("POP Smart Contract deployed to:", pop.address);
 }
