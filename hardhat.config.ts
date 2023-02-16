@@ -19,11 +19,12 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: "hardhat",
+  defaultNetwork: "local",
   networks: {
-    hardhat: {
+    local: {
       chainId: 1337,
-      accounts: devAccounts
+      url: "http://localhost:8545",
+      accounts: STAGING_ACCOUNTS_PKEYS
     },
     ...STAGING_NETWORKS,
     mumbai: {

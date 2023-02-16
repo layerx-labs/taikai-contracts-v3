@@ -15,7 +15,7 @@
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
     "prepublishOnly": "npm run build",
-    "deploy:local": "npx hardhat run --network hardhat scripts/deploy.ts",
+    "deploy:local": "npx hardhat run --network local scripts/deploy.ts",
     "deploy:vp": "npx hardhat run --network vp scripts/deploy.ts",
     "deploy:eden": "npx hardhat run --network eden scripts/deploy.ts",
     "deploy:gaia": "npx hardhat run --network gaia scripts/deploy.ts",
