@@ -4,6 +4,8 @@ import {HardhatNetworkAccountUserConfig} from "hardhat/types/config";
 import { STAGING_ACCOUNTS_PKEYS} from "./config/constants";
 import { STAGING_NETWORKS} from "./config/networks";
 
+const PRIVATE_KEY = process.env.PRIVATE_KEY || STAGING_ACCOUNTS_PKEYS[0];
+
 const devAccounts: HardhatNetworkAccountUserConfig[] =  STAGING_ACCOUNTS_PKEYS.map(
     key=>  { return {privateKey: key, balance: "1000000000000000000000000"}}); 
 
@@ -17,13 +19,24 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: "hardhat",
+  defaultNetwork: "local",
   networks: {
-    hardhat: {
+    local: {
       chainId: 1337,
-      accounts: devAccounts
+      url: "http://localhost:8545",
+      accounts: STAGING_ACCOUNTS_PKEYS
     },
-    ...STAGING_NETWORKS
+    ...STAGING_NETWORKS,
+    mumbai: {
+      chainId: 80001,
+      url: "https://rpc-mumbai.maticvigil.com",
+      accounts: STAGING_ACCOUNTS_PKEYS
+    },
+    polygon: {
+      chainId: 137,
+      url: "https://polygon-rpc.com",
+      accounts: [PRIVATE_KEY]
+    }
   },
 };
 

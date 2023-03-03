@@ -4,16 +4,16 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 import { ethers } from "hardhat";
-import { STAGING_ACCOUNTS_ADDRESSES } from "../config/constants";
 
 async function main() {
   // We get the contract to deploy
   const TKAI = await ethers.getContractFactory("TKAI");
-  const owner = STAGING_ACCOUNTS_ADDRESSES[0];
+  const accounts = await ethers.getSigners();
+  const owner = accounts[0].address;
   const kai = await TKAI.deploy("TAIKAI Token", "TKAI", owner);
   await kai.deployed();
   console.log("TKAI Token deployed to:", kai.address);
-  const accounts = await ethers.getSigners();
+
   //
   for (const account of accounts) {
     if (account.address != owner) {
