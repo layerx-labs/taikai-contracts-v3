@@ -19,7 +19,7 @@ async function main() {
     if (account.address != owner) {
       // Transfer 1M to each account
       console.log("Transferring 1M to ", account.address);
-      await kai.transfer(account.address, 1000000000000);
+      await kai.transfer(account.address, "1000000000000000000000000");
     }
   }
   // Deploy POP Contract
