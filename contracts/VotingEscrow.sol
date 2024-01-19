@@ -74,25 +74,28 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     address constant ZERO_ADDRESS = address(0);
 
     constructor(
-        address token_addr,
-        string memory name_,
-        string memory symbol_,
-        string memory version_
+        address _token_addr,
+        string memory _name,
+        string memory _symbol,
+        string memory _version
     ) Ownable() ReentrancyGuard() {
-        token = token_addr;
+        token = _token_addr;
         point_history[0].blk = block.number;
         point_history[0].ts = block.timestamp;
 
-        uint8 _decimals = IERC20Metadata(token_addr).decimals();
-        require(token_addr != address(0), "token_addr cannot be zero address");
+        uint8 decimals_ = IERC20Metadata(_token_addr).decimals();
         require(
-            _decimals <= 255,
+            _token_addr != address(0),
+            "_token_addr cannot be zero address"
+        );
+        require(
+            decimals_ <= 255,
             "Decimals should be less than or equal to 255"
         );
-        decimals = _decimals;
-        name = name_;
-        symbol = symbol_;
-        version = version_;
+        decimals = decimals_;
+        name = _name;
+        symbol = _symbol;
+        version = _version;
     }
 
     function setAdvancePercentage(
