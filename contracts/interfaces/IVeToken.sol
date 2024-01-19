@@ -4,6 +4,8 @@ pragma solidity >=0.8.9;
 interface IVeToken {
     function getLastUserSlope(address addr) external view returns (int128);
 
+    function setAdvancePercentage(uint16 _advance_percentage) external;
+
     function userPointHistoryTs(
         address addr,
         uint256 idx

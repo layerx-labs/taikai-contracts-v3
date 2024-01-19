@@ -59,6 +59,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string public version;
     uint8 public decimals;
 
+    uint16 advance_percentage = 1000; // 10%, the last 2 digits are the decimals part
+
     mapping(address => LockedBalance) public locked;
 
     uint256 public epoch;
@@ -91,6 +93,23 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         name = name_;
         symbol = symbol_;
         version = version_;
+    }
+
+    function setAdvancePercentage(
+        uint16 _advance_percentage
+    ) external onlyOwner {
+        require(
+            _advance_percentage <= 10000 && _advance_percentage >= 0,
+            "advance_percentage should be between 0 and 10000"
+        );
+        advance_percentage = _advance_percentage;
+    }
+
+    function calculatePercentage(
+        uint256 whole,
+        uint16 percentage
+    ) internal pure returns (uint256) {
+        return (whole * percentage) / 10000;
     }
 
     function getLastUserSlope(
@@ -330,7 +349,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         require(msg.sender == tx.origin, "No contracts allowed");
 
         uint256 unlock_time = (_unlock_time / WEEK) * WEEK; // Locktime rounded down to weeks
-        int128 currentTime = int128(uint128(block.timestamp));
+        uint256 currentTime = block.timestamp;
         LockedBalance memory _locked = locked[msg.sender];
 
         require(currentTime >= 0, "Current time exceeds int128 limits");
@@ -341,8 +360,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             "Can only lock until time in the future"
         );
         require(
-            unlock_time <=
-                uint256(int256(currentTime)) + uint256(int256(MAXTIME)),
+            unlock_time <= currentTime + uint256(int256(MAXTIME)),
             "Voting lock can be 4 years max"
         );
 
@@ -401,7 +419,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     function withdraw() external override nonReentrant {
         LockedBalance memory _locked = locked[msg.sender];
-        require(block.timestamp >= _locked.end, "The lock didn't expire");
+
         uint256 value = uint256(int256(_locked.amount));
 
         LockedBalance memory old_locked = _locked;
@@ -449,14 +467,23 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             return 0;
         } else {
             Point memory last_point = user_point_history[addr][_epoch];
-            int128 timeDiff = int128(int256(block.timestamp - last_point.ts));
+            uint256 timeDiff = (block.timestamp - last_point.ts);
 
             if (timeDiff < 0) {
                 // Handle negative time difference, if applicable
                 timeDiff = 0;
             }
 
-            last_point.bias -= last_point.slope * timeDiff;
+            last_point.bias -=
+                last_point.slope *
+                int128(
+                    uint128(
+                        calculatePercentage(
+                            timeDiff,
+                            10000 - advance_percentage
+                        )
+                    )
+                );
             if (last_point.bias < 0) {
                 last_point.bias = 0;
             }
@@ -504,8 +531,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             block_time += (d_t * (_block - point_0.blk)) / d_block;
         }
 
-        int128 timeDiff = int128(int256(block_time) - int256(upoint.ts));
-        upoint.bias -= upoint.slope * timeDiff;
+        uint256 timeDiff = block_time - upoint.ts;
+        upoint.bias -=
+            upoint.slope *
+            int128(
+                uint128(
+                    calculatePercentage(timeDiff, 10000 - advance_percentage)
+                )
+            );
         if (upoint.bias >= 0) {
             return uint256(int256(upoint.bias));
         } else {
