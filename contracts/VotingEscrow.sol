@@ -137,6 +137,65 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return addr == ZERO_ADDRESS;
     }
 
+    function _updatePoints(Point memory last_point) internal {
+        uint256 _epoch = epoch;
+        uint256 last_checkpoint = last_point.ts;
+        // initial_last_point is used for extrapolation to calculate block number
+        // (approximately, for *At methods) and save them
+        // as we cannot figure that out exactly from inside the contract
+        Point memory initial_last_point = last_point;
+        uint256 block_slope = 0; // dblock/dt
+        if (block.timestamp > last_point.ts) {
+            block_slope =
+                (MULTIPLIER * (block.number - last_point.blk)) /
+                (block.timestamp - last_point.ts);
+        }
+        // Go over weeks to fill history and calculate what the current point is
+        uint256 t_i = (last_checkpoint / WEEK) * WEEK;
+
+        for (uint256 i = 0; i < 255; i++) {
+            // Hopefully it won't happen that this won't get used in 5 years!
+            // If it does, users will be able to withdraw but vote weight will be broken
+            t_i += WEEK;
+            int128 d_slope = 0;
+            if (t_i > block.timestamp) {
+                t_i = block.timestamp;
+            } else {
+                d_slope = slope_changes[t_i];
+            }
+
+            last_point.bias -=
+                last_point.slope *
+                int128(int256(t_i) - int256(last_checkpoint));
+
+            last_point.slope += d_slope;
+            if (last_point.bias < 0) {
+                // This can happen
+                last_point.bias = 0;
+            }
+
+            if (last_point.slope < 0) {
+                // This cannot happen - just in case
+                last_point.slope = 0;
+            }
+            last_checkpoint = t_i;
+            last_point.ts = t_i;
+            last_point.blk =
+                initial_last_point.blk +
+                (block_slope * (t_i - initial_last_point.ts)) /
+                MULTIPLIER;
+            _epoch += 1;
+            if (t_i == block.timestamp) {
+                last_point.blk = block.number;
+                break;
+            } else {
+                point_history[_epoch] = last_point;
+            }
+        }
+
+        epoch = _epoch;
+    }
+
     function _checkpoint(
         address addr,
         LockedBalance memory old_locked,
@@ -189,65 +248,11 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         if (_epoch > 0) {
             last_point = point_history[_epoch];
         }
-        uint256 last_checkpoint = last_point.ts;
-        // initial_last_point is used for extrapolation to calculate block number
-        // (approximately, for *At methods) and save them
-        // as we cannot figure that out exactly from inside the contract
-        Point memory initial_last_point = last_point;
-        uint256 block_slope = 0; // dblock/dt
-        if (block.timestamp > last_point.ts) {
-            block_slope =
-                (MULTIPLIER * (block.number - last_point.blk)) /
-                (block.timestamp - last_point.ts);
-        }
+
         // If last point is already recorded in this block, slope=0
         // But that's ok b/c we know the block in such case
 
-        // Go over weeks to fill history and calculate what the current point is
-        uint256 t_i = (last_checkpoint / WEEK) * WEEK;
-
-        for (uint256 i = 0; i < 255; i++) {
-            // Hopefully it won't happen that this won't get used in 5 years!
-            // If it does, users will be able to withdraw but vote weight will be broken
-            t_i += WEEK;
-            int128 d_slope = 0;
-            if (t_i > block.timestamp) {
-                t_i = block.timestamp;
-            } else {
-                d_slope = slope_changes[t_i];
-            }
-
-            last_point.bias -=
-                last_point.slope *
-                int128(int256(t_i) - int256(last_checkpoint));
-
-            last_point.slope += d_slope;
-            if (last_point.bias < 0) {
-                // This can happen
-                last_point.bias = 0;
-            }
-
-            if (last_point.slope < 0) {
-                // This cannot happen - just in case
-                last_point.slope = 0;
-            }
-            last_checkpoint = t_i;
-            last_point.ts = t_i;
-            last_point.blk =
-                initial_last_point.blk +
-                (block_slope * (t_i - initial_last_point.ts)) /
-                MULTIPLIER;
-            _epoch += 1;
-            if (t_i == block.timestamp) {
-                last_point.blk = block.number;
-                break;
-            } else {
-                point_history[_epoch] = last_point;
-            }
-        }
-
-        epoch = _epoch;
-        // Now point_history is filled until t=now
+        _updatePoints(last_point);
 
         if (!isZeroAddress(addr)) {
             // If last point was in this block, the slope change has been applied already
@@ -566,8 +571,17 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
                 d_slope = slope_changes[t_i];
             }
 
-            int128 timeDiff = int128(int256(t_i) - int256(last_point.ts));
-            last_point.bias -= last_point.slope * timeDiff;
+            uint256 timeDiff = t_i - last_point.ts;
+            last_point.bias -=
+                last_point.slope *
+                int128(
+                    uint128(
+                        calculatePercentage(
+                            timeDiff,
+                            10000 - advance_percentage
+                        )
+                    )
+                );
 
             if (t_i == t) {
                 break;
@@ -584,14 +598,42 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return uint256(int256(last_point.bias));
     }
 
+    function _findGlobalTimestampEpoch(
+        uint256 ts
+    ) internal view returns (uint256) {
+        uint256 min = 0;
+        uint256 max = epoch;
+
+        for (uint256 i = 0; i < 128; i++) {
+            if (min >= max) {
+                break;
+            }
+            uint256 mid = (min + max + 1) / 2;
+            if (point_history[mid].ts <= ts) {
+                min = mid;
+            } else {
+                max = mid - 1;
+            }
+        }
+        return min;
+    }
+
     function totalLocked() external view returns (uint256) {
         return supply;
     }
 
-    function totalSupply() external view override returns (uint256) {
-        uint256 _epoch = epoch;
-        Point memory last_point = point_history[_epoch];
-        return supplyAt(last_point, block.timestamp);
+    /// @notice Calculate total voting power at a given timestamp
+    /// @return Total voting power at timestamp
+    function totalSupply(uint256 ts) public view override returns (uint256) {
+        uint256 _epoch = _findGlobalTimestampEpoch(ts);
+        Point memory lastPoint = point_history[_epoch];
+        return supplyAt(lastPoint, ts);
+    }
+
+    /// @notice Calculate total voting power at current timestamp
+    /// @return Total voting power at current timestamp
+    function totalSupply() public view override returns (uint256) {
+        return totalSupply(block.timestamp);
     }
 
     function totalSupplyAt(

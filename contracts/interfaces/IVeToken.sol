@@ -34,6 +34,8 @@ interface IVeToken {
 
     function totalSupply() external view returns (uint256);
 
+    function totalSupply(uint256 ts) external view returns (uint256);
+
     function totalLocked() external view returns (uint256);
 
     function totalSupplyAt(uint256 _block) external view returns (uint256);
