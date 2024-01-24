@@ -45,9 +45,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
 
     // Define constants
-    uint256 public constant WEEK = 1 weeks; // All future times are rounded by week
+    uint256 private constant WEEK = 1 weeks; // All future times are rounded by week
     int128 public constant MAXTIME = 4 * 365 days; // 4 years
-    uint256 public constant MULTIPLIER = 10 ** 18;
+    uint256 private constant MULTIPLIER = 10 ** 18;
 
     // State variables
     address public token;
@@ -63,14 +63,11 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     mapping(address => LockedBalance) public locked;
 
-    uint256 public epoch;
-    // Point is assumed to be a struct. Replace '100000000000000000000000000000' with an appropriate value or logic
-    mapping(uint256 => Point) public point_history;
-    // Assuming Point is a struct. Replace '1000000000' with an appropriate size or logic
-    mapping(address => mapping(uint256 => Point)) public user_point_history;
-    mapping(address => uint256) public user_point_epoch;
-    // Assuming int128 is a type alias or you're using int256 instead
-    mapping(uint256 => int128) public slope_changes;
+    uint256 private epoch;
+    mapping(uint256 => Point) private point_history;
+    mapping(address => mapping(uint256 => Point)) private user_point_history;
+    mapping(address => uint256) private user_point_epoch;
+    mapping(uint256 => int128) private slope_changes;
     address constant ZERO_ADDRESS = address(0);
 
     constructor(
@@ -164,7 +161,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
                 d_slope = slope_changes[t_i];
             }
 
-            last_point.bias -=
+            last_point.bias +=
                 last_point.slope *
                 int128(int256(t_i) - int256(last_checkpoint));
 
@@ -212,16 +209,28 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             // Kept at zero when they have to
             if (old_locked.end > block.timestamp && old_locked.amount > 0) {
                 u_old.slope = old_locked.amount / MAXTIME;
-                u_old.bias =
-                    int128(u_old.slope) *
-                    int128(int256(old_locked.end) - int256(block.timestamp));
+                u_old.bias = int128(
+                    uint128(
+                        calculatePercentage(
+                            uint256(uint128(u_old.slope)) *
+                                (old_locked.end - block.timestamp),
+                            advance_percentage
+                        )
+                    )
+                );
             }
 
             if (new_locked.end > block.timestamp && new_locked.amount > 0) {
                 u_new.slope = new_locked.amount / MAXTIME;
-                u_new.bias =
-                    int128(u_new.slope) *
-                    int128(int256(new_locked.end) - int256(block.timestamp));
+                u_new.bias = int128(
+                    uint128(
+                        calculatePercentage(
+                            uint256(uint128(u_new.slope)) *
+                                (new_locked.end - block.timestamp),
+                            advance_percentage
+                        )
+                    )
+                );
             }
 
             // Read values of scheduled changes in the slope
@@ -365,7 +374,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         require(_locked.amount == 0, "Withdraw old tokens first");
         require(
             unlock_time > block.timestamp,
-            "Can only lock until time in the future"
+            "Can only lock until time in the future, 1 week min"
         );
         require(
             unlock_time <= currentTime + uint256(int256(MAXTIME)),
@@ -475,25 +484,31 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             return 0;
         } else {
             Point memory last_point = user_point_history[addr][_epoch];
-            uint256 timeDiff = (block.timestamp - last_point.ts);
 
-            if (timeDiff < 0) {
-                // Handle negative time difference, if applicable
-                timeDiff = 0;
-            }
-
-            last_point.bias -=
-                last_point.slope *
-                int128(
-                    uint128(
-                        calculatePercentage(
-                            timeDiff,
-                            10000 - advance_percentage
+            if (locked[addr].end > block.timestamp) {
+                uint256 timeDiff = (block.timestamp - last_point.ts);
+                last_point.bias +=
+                    last_point.slope *
+                    int128(
+                        uint128(
+                            calculatePercentage(
+                                timeDiff,
+                                10000 - advance_percentage
+                            )
                         )
-                    )
-                );
-            if (last_point.bias < 0) {
-                last_point.bias = 0;
+                    );
+            } else {
+                uint256 timeDiff = (locked[addr].end - last_point.ts);
+                last_point.bias +=
+                    last_point.slope *
+                    int128(
+                        uint128(
+                            calculatePercentage(
+                                timeDiff,
+                                10000 - advance_percentage
+                            )
+                        )
+                    );
             }
 
             return uint256(int256(last_point.bias));
@@ -540,7 +555,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         }
 
         uint256 timeDiff = block_time - upoint.ts;
-        upoint.bias -=
+        upoint.bias +=
             upoint.slope *
             int128(
                 uint128(
@@ -552,50 +567,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         } else {
             return 0;
         }
-    }
-
-    function supplyAt(
-        Point memory point,
-        uint256 t
-    ) internal view returns (uint256) {
-        Point memory last_point = point;
-        uint256 t_i = (last_point.ts / WEEK) * WEEK;
-
-        for (uint256 i = 0; i < 255; i++) {
-            t_i += WEEK;
-            int128 d_slope = 0;
-
-            if (t_i > t) {
-                t_i = t;
-            } else {
-                d_slope = slope_changes[t_i];
-            }
-
-            uint256 timeDiff = t_i - last_point.ts;
-            last_point.bias -=
-                last_point.slope *
-                int128(
-                    uint128(
-                        calculatePercentage(
-                            timeDiff,
-                            10000 - advance_percentage
-                        )
-                    )
-                );
-
-            if (t_i == t) {
-                break;
-            }
-
-            last_point.slope += d_slope;
-            last_point.ts = t_i;
-        }
-
-        if (last_point.bias < 0) {
-            last_point.bias = 0;
-        }
-
-        return uint256(int256(last_point.bias));
     }
 
     function _findGlobalTimestampEpoch(
@@ -620,48 +591,5 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     function totalLocked() external view returns (uint256) {
         return supply;
-    }
-
-    /// @notice Calculate total voting power at a given timestamp
-    /// @return Total voting power at timestamp
-    function totalSupply(uint256 ts) public view override returns (uint256) {
-        uint256 _epoch = _findGlobalTimestampEpoch(ts);
-        Point memory lastPoint = point_history[_epoch];
-        return supplyAt(lastPoint, ts);
-    }
-
-    /// @notice Calculate total voting power at current timestamp
-    /// @return Total voting power at current timestamp
-    function totalSupply() public view override returns (uint256) {
-        return totalSupply(block.timestamp);
-    }
-
-    function totalSupplyAt(
-        uint256 _block
-    ) external view override returns (uint256) {
-        require(_block <= block.number, "Block number is too high");
-
-        uint256 _epoch = epoch;
-        uint256 target_epoch = findBlockEpoch(_block, _epoch);
-
-        Point memory point = point_history[target_epoch];
-        uint256 dt = 0;
-
-        if (target_epoch < _epoch) {
-            Point memory point_next = point_history[target_epoch + 1];
-            if (point.blk != point_next.blk) {
-                dt =
-                    ((_block - point.blk) * (point_next.ts - point.ts)) /
-                    (point_next.blk - point.blk);
-            }
-        } else {
-            if (point.blk != block.number) {
-                dt =
-                    ((_block - point.blk) * (block.timestamp - point.ts)) /
-                    (block.number - point.blk);
-            }
-        }
-
-        return supplyAt(point, point.ts + dt);
     }
 }
