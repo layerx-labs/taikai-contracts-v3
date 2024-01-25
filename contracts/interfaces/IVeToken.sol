@@ -15,8 +15,6 @@ interface IVeToken {
 
     function checkpoint() external;
 
-    function depositFor(address _addr, uint256 _value) external;
-
     function createLock(uint256 _value, uint256 _unlock_time) external;
 
     function increaseUnlockTime(uint256 _unlock_time) external;

@@ -11,10 +11,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     enum ActionType {
-        DEPOSIT_FOR, // 0
-        CREATE_LOCK, // 1
-        INCREASE_LOCK_AMOUNT, // 2
-        INCREASE_UNLOCK_TIME // 3
+        CREATE_LOCK,
+        INCREASE_LOCK_AMOUNT,
+        INCREASE_UNLOCK_TIME
     }
 
     // Define the Deposit event
@@ -59,7 +58,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string public version;
     uint8 public decimals;
 
-    uint16 advance_percentage = 1000; // 10%, the last 2 digits are the decimals part
+    uint16 public advance_percentage = 1000; // 10%, the last 2 digits are the decimals part
 
     mapping(address => LockedBalance) public locked;
 
@@ -336,27 +335,11 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         }
 
         emit Deposit(_addr, _value, _locked.end, _action_type, block.timestamp);
-        emit Supply(supply_before, supply + _value);
+        emit Supply(supply_before, supply);
     }
 
     function checkpoint() external override {
         _checkpoint(ZERO_ADDRESS, LockedBalance(0, 0), LockedBalance(0, 0));
-    }
-
-    function depositFor(
-        address _addr,
-        uint256 _value
-    ) external override nonReentrant {
-        LockedBalance memory _locked = locked[_addr];
-
-        require(_value > 0, "Need non-zero value");
-        require(_locked.amount > 0, "No existing lock found");
-        require(
-            _locked.end > block.timestamp,
-            "Cannot add to expired lock. Withdraw"
-        );
-
-        _depositFor(_addr, _value, 0, locked[_addr], ActionType.DEPOSIT_FOR);
     }
 
     function createLock(
