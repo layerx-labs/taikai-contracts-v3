@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "compile": "npx hardhat compile",
-    "test": "npx hardhat test",
+    "test": "npx hardhat test --network hardhat",
     "prepublishOnly": "npm run build",
     "deploy:local": "npx hardhat run --network local scripts/deploy.ts",
     "deploy:vp": "npx hardhat run --network vp scripts/deploy.ts",
