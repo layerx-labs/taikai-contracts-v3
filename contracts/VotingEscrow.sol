@@ -463,7 +463,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     function balanceOf(address addr) external view override returns (uint256) {
         uint256 _epoch = user_point_epoch[addr];
-        if (_epoch == 0) {
+        if (_epoch == 0 || locked[addr].end == 0) {
             return 0;
         } else {
             Point memory last_point = user_point_history[addr][_epoch];
