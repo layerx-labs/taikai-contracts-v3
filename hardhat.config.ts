@@ -1,3 +1,8 @@
+import 'hardhat-contract-sizer';
+import 'hardhat-gas-reporter';
+import 'hardhat-tracer';
+import '@nomiclabs/hardhat-solhint';
+import 'hardhat-docgen';
 import { HardhatUserConfig } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 import { HardhatNetworkAccountUserConfig } from 'hardhat/types/config';
@@ -13,13 +18,28 @@ const devAccounts: HardhatNetworkAccountUserConfig[] =
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: '0.8.17',
+    version: '0.8.18',
     settings: {
       optimizer: {
         enabled: true,
         runs: 200,
       },
     },
+  },
+  docgen: {
+    path: './docs',
+    clear: true,
+    runOnCompile: true,
+  },
+  contractSizer: {
+    alphaSort: true,
+    disambiguatePaths: false,
+    runOnCompile: true,
+    strict: true,
+    only: [],
+  },
+  gasReporter: {
+    enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
   },
   defaultNetwork: 'local',
   networks: {
