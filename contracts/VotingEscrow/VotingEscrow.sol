@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.8.9;
+pragma solidity >=0.8.18;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "./interfaces/IVeToken.sol";
+import "./IVeToken.sol";
+import "./IVeTokenSettings.sol";
 
 contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     enum ActionType {
-        CREATE_LOCK,
-        INCREASE_LOCK_AMOUNT,
-        INCREASE_UNLOCK_TIME
+        DEPOSIT,
+        INCREASE_LOCK_AMOUNT
     }
 
     // Define the Deposit event
@@ -45,8 +45,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     // Define constants
     uint256 private constant WEEK = 1 weeks; // All future times are rounded by week
-    int128 public constant MAXTIME = 4 * 365 days; // 4 years
     uint256 private constant MULTIPLIER = 10 ** 18;
+    address constant ZERO_ADDRESS = address(0);
 
     // State variables
     address public token;
@@ -57,29 +57,28 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string public symbol;
     string public version;
     uint8 public decimals;
-
-    uint16 public advance_percentage = 1000; // 10%, the last 2 digits are the decimals part
-
-    mapping(address => LockedBalance) public locked;
+    address public settings;
 
     uint256 private epoch;
+    mapping(address => LockedBalance) public locked;
     mapping(uint256 => Point) private point_history;
     mapping(address => mapping(uint256 => Point)) private user_point_history;
     mapping(address => uint256) private user_point_epoch;
     mapping(uint256 => int128) private slope_changes;
-    address constant ZERO_ADDRESS = address(0);
 
     constructor(
         address _token_addr,
         string memory _name,
         string memory _symbol,
-        string memory _version
+        string memory _version,
+        address _settings
     ) Ownable() ReentrancyGuard() {
         token = _token_addr;
         point_history[0].blk = block.number;
         point_history[0].ts = block.timestamp;
 
         uint8 decimals_ = IERC20Metadata(_token_addr).decimals();
+        settings = _settings;
         require(
             _token_addr != address(0),
             "_token_addr cannot be zero address"
@@ -92,16 +91,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         name = _name;
         symbol = _symbol;
         version = _version;
-    }
-
-    function setAdvancePercentage(
-        uint16 _advance_percentage
-    ) external onlyOwner {
-        require(
-            _advance_percentage <= 10000 && _advance_percentage >= 0,
-            "advance_percentage should be between 0 and 10000"
-        );
-        advance_percentage = _advance_percentage;
     }
 
     function calculatePercentage(
@@ -207,26 +196,30 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             // Calculate slopes and biases
             // Kept at zero when they have to
             if (old_locked.end > block.timestamp && old_locked.amount > 0) {
-                u_old.slope = old_locked.amount / MAXTIME;
+                u_old.slope =
+                    old_locked.amount /
+                    IVeTokenSettings(settings).locktime();
                 u_old.bias = int128(
                     uint128(
                         calculatePercentage(
                             uint256(uint128(u_old.slope)) *
                                 (old_locked.end - block.timestamp),
-                            advance_percentage
+                            IVeTokenSettings(settings).advancePercentage()
                         )
                     )
                 );
             }
 
             if (new_locked.end > block.timestamp && new_locked.amount > 0) {
-                u_new.slope = new_locked.amount / MAXTIME;
+                u_new.slope =
+                    new_locked.amount /
+                    IVeTokenSettings(settings).locktime();
                 u_new.bias = int128(
                     uint128(
                         calculatePercentage(
                             uint256(uint128(u_new.slope)) *
                                 (new_locked.end - block.timestamp),
-                            advance_percentage
+                            IVeTokenSettings(settings).advancePercentage()
                         )
                     )
                 );
@@ -342,79 +335,41 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         _checkpoint(ZERO_ADDRESS, LockedBalance(0, 0), LockedBalance(0, 0));
     }
 
-    function createLock(
-        uint256 _value,
-        uint256 _unlock_time
-    ) external override nonReentrant {
+    function deposit(uint256 _value) external override nonReentrant {
         require(msg.sender == tx.origin, "No contracts allowed");
-
-        uint256 unlock_time = (_unlock_time / WEEK) * WEEK; // Locktime rounded down to weeks
-        uint256 currentTime = block.timestamp;
-        LockedBalance memory _locked = locked[msg.sender];
-
-        require(currentTime >= 0, "Current time exceeds int128 limits");
         require(_value > 0, "Need non-zero value");
-        require(_locked.amount == 0, "Withdraw old tokens first");
-        require(
-            unlock_time > block.timestamp,
-            "Can only lock until time in the future, 1 week min"
-        );
-        require(
-            unlock_time <= currentTime + uint256(int256(MAXTIME)),
-            "Voting lock can be 4 years max"
-        );
-
-        _depositFor(
-            msg.sender,
-            _value,
-            unlock_time,
-            _locked,
-            ActionType.CREATE_LOCK
-        );
-    }
-
-    function increaseAmount(uint256 _value) external override nonReentrant {
         LockedBalance memory _locked = locked[msg.sender];
 
-        require(_value > 0, "Need non-zero value");
-        require(_locked.amount > 0, "No existing lock found");
-        require(
-            _locked.end > block.timestamp,
-            "Cannot add to expired lock. Withdraw"
-        );
+        if (_locked.amount > 0) {
+            require(
+                _locked.end > block.timestamp,
+                "Cannot add to expired lock. Withdraw"
+            );
 
-        _depositFor(
-            msg.sender,
-            _value,
-            0,
-            _locked,
-            ActionType.INCREASE_LOCK_AMOUNT
-        );
-    }
+            _depositFor(
+                msg.sender,
+                _value,
+                0,
+                _locked,
+                ActionType.INCREASE_LOCK_AMOUNT
+            );
+        } else {
+            uint256 currentTime = block.timestamp;
+            uint256 unlock_time = ((currentTime +
+                uint256(int256(IVeTokenSettings(settings).locktime()))) /
+                WEEK) * WEEK; // Locktime rounded down to weeks
 
-    function increaseUnlockTime(
-        uint256 _unlock_time
-    ) external override nonReentrant {
-        LockedBalance memory _locked = locked[msg.sender];
-        uint256 unlock_time = (_unlock_time / WEEK) * WEEK; // Locktime rounded down to weeks
-        int128 currentTime = int128(uint128(block.timestamp));
+            require(currentTime >= 0, "Current time exceeds int128 limits");
+            require(_locked.amount == 0, "Withdraw old tokens first");
 
-        require(_locked.end > block.timestamp, "Lock expired");
-        require(_locked.amount > 0, "Nothing is locked");
-        require(unlock_time > _locked.end, "Can only increase lock duration");
-        require(
-            unlock_time <=
-                uint256(int256(currentTime)) + uint256(int256(MAXTIME)),
-            "Voting lock can be 4 years max"
-        );
-
-        _depositFor(
-            msg.sender,
-            0,
-            unlock_time,
-            _locked,
-            ActionType.INCREASE_UNLOCK_TIME
-        );
+            _depositFor(
+                msg.sender,
+                _value,
+                unlock_time,
+                _locked,
+                ActionType.DEPOSIT
+            );
+        }
     }
 
     function withdraw() external override nonReentrant {
@@ -469,26 +424,34 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             Point memory last_point = user_point_history[addr][_epoch];
 
             if (locked[addr].end > block.timestamp) {
+                // When the lock has not expired yet
                 uint256 timeDiff = (block.timestamp - last_point.ts);
+
                 last_point.bias +=
                     last_point.slope *
                     int128(
                         uint128(
                             calculatePercentage(
                                 timeDiff,
-                                10000 - advance_percentage
+                                10000 -
+                                    IVeTokenSettings(settings)
+                                        .advancePercentage()
                             )
                         )
                     );
             } else {
+                // When the lock has expired
                 uint256 timeDiff = (locked[addr].end - last_point.ts);
+
                 last_point.bias +=
                     last_point.slope *
                     int128(
                         uint128(
                             calculatePercentage(
                                 timeDiff,
-                                10000 - advance_percentage
+                                10000 -
+                                    IVeTokenSettings(settings)
+                                        .advancePercentage()
                             )
                         )
                     );
@@ -542,7 +505,10 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             upoint.slope *
             int128(
                 uint128(
-                    calculatePercentage(timeDiff, 10000 - advance_percentage)
+                    calculatePercentage(
+                        timeDiff,
+                        10000 - IVeTokenSettings(settings).advancePercentage()
+                    )
                 )
             );
         if (upoint.bias >= 0) {
