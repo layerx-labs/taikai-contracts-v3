@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./IVeToken.sol";
 import "./IVeTokenSettings.sol";
 
+/// @title VeToken
+/// @notice This contract represents a token with locking functionality.
 contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -50,7 +52,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     // State variables
     address public token;
-    uint256 public supply;
+    uint256 private supply;
 
     // Token metadata
     string public name;
@@ -66,6 +68,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     mapping(address => uint256) private user_point_epoch;
     mapping(uint256 => int128) private slope_changes;
 
+    /**
+        @notice Constructor to initialize the VeToken contract.
+        @param _token_addr The address of the token (Eg.: TKAI address).
+        @param _name The name for this VeToken.
+        @param _symbol The symbol for this VeToken.
+        @param _version The version for this VeToken.
+        @param _settings The address for the settings contract.
+    */
     constructor(
         address _token_addr,
         string memory _name,
@@ -93,6 +103,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         version = _version;
     }
 
+    /**
+        @dev Calculate the percentage of a number.
+        @param whole The whole number.
+        @param percentage The percentage.
+        NOTE: The percentage must be multiplied by 100 to avoid floating point numbers.
+                Eg.: 10% should be passed as 1000. 100% should be passed as 10000.
+        @return The percentage of the whole number.
+     */
     function calculatePercentage(
         uint256 whole,
         uint16 percentage
@@ -100,6 +118,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return (whole * percentage) / 10000;
     }
 
+    /// @inheritdoc IVeToken
     function getLastUserSlope(
         address addr
     ) external view override returns (int128) {
@@ -107,6 +126,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return user_point_history[addr][uepoch].slope;
     }
 
+    /// @inheritdoc IVeToken
     function userPointHistoryTs(
         address addr,
         uint256 idx
@@ -114,14 +134,199 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return user_point_history[addr][idx].ts;
     }
 
+    /// @inheritdoc IVeToken
     function lockedEnd(address addr) external view override returns (uint256) {
         return locked[addr].end;
     }
 
-    function isZeroAddress(address addr) public pure returns (bool) {
+    /**
+        @dev Check if the given address is a zero address.
+        @param addr The address to check.
+        @return True if the address is a zero address, otherwise false.
+     */
+    function isZeroAddress(address addr) internal pure returns (bool) {
         return addr == ZERO_ADDRESS;
     }
 
+    /// @inheritdoc IVeToken
+    function checkpoint() external override {
+        _checkpoint(ZERO_ADDRESS, LockedBalance(0, 0), LockedBalance(0, 0));
+    }
+
+    /// @inheritdoc IVeToken
+    function deposit(uint256 _value) external override nonReentrant {
+        require(msg.sender == tx.origin, "No contracts allowed");
+        require(_value > 0, "Need non-zero value");
+        LockedBalance memory _locked = locked[msg.sender];
+
+        if (_locked.amount > 0) {
+            require(
+                _locked.end > block.timestamp,
+                "Cannot add to expired lock. Withdraw"
+            );
+
+            _depositFor(
+                msg.sender,
+                _value,
+                0,
+                _locked,
+                ActionType.INCREASE_LOCK_AMOUNT
+            );
+        } else {
+            uint256 currentTime = block.timestamp;
+            uint256 unlock_time = ((currentTime +
+                uint256(int256(IVeTokenSettings(settings).locktime()))) /
+                WEEK) * WEEK; // Locktime rounded down to weeks
+
+            require(currentTime >= 0, "Current time exceeds int128 limits");
+            require(_locked.amount == 0, "Withdraw old tokens first");
+
+            _depositFor(
+                msg.sender,
+                _value,
+                unlock_time,
+                _locked,
+                ActionType.DEPOSIT
+            );
+        }
+    }
+
+    /// @inheritdoc IVeToken
+    function withdraw() external override nonReentrant {
+        LockedBalance memory _locked = locked[msg.sender];
+
+        uint256 value = uint256(int256(_locked.amount));
+
+        LockedBalance memory old_locked = _locked;
+        _locked.end = 0;
+        _locked.amount = 0;
+        locked[msg.sender] = _locked;
+        uint256 supply_before = supply;
+        supply = supply_before - value;
+
+        _checkpoint(msg.sender, old_locked, _locked);
+
+        IERC20(token).safeTransfer(msg.sender, value);
+
+        emit Withdraw(msg.sender, value, block.timestamp);
+        emit Supply(supply_before, supply_before - value);
+    }
+
+    /// @inheritdoc IVeToken
+    function balanceOf(address addr) external view override returns (uint256) {
+        uint256 _epoch = user_point_epoch[addr];
+        if (_epoch == 0 || locked[addr].end == 0) {
+            return 0;
+        } else {
+            Point memory last_point = user_point_history[addr][_epoch];
+
+            if (locked[addr].end > block.timestamp) {
+                // When the lock has not expired yet
+                uint256 timeDiff = (block.timestamp - last_point.ts);
+
+                last_point.bias +=
+                    last_point.slope *
+                    int128(
+                        uint128(
+                            calculatePercentage(
+                                timeDiff,
+                                10000 -
+                                    IVeTokenSettings(settings)
+                                        .advancePercentage()
+                            )
+                        )
+                    );
+            } else {
+                // When the lock has expired
+                uint256 timeDiff = (locked[addr].end - last_point.ts);
+
+                last_point.bias +=
+                    last_point.slope *
+                    int128(
+                        uint128(
+                            calculatePercentage(
+                                timeDiff,
+                                10000 -
+                                    IVeTokenSettings(settings)
+                                        .advancePercentage()
+                            )
+                        )
+                    );
+            }
+
+            return uint256(int256(last_point.bias));
+        }
+    }
+
+    /// @inheritdoc IVeToken
+    function balanceOfAt(
+        address addr,
+        uint256 _block
+    ) external view override returns (uint256) {
+        require(_block <= block.number, "Block number too high");
+
+        uint256 _min = 0;
+        uint256 _max = user_point_epoch[addr];
+        for (uint256 i = 0; i < 128; i++) {
+            if (_min >= _max) {
+                break;
+            }
+            uint256 _mid = (_min + _max + 1) / 2;
+            if (user_point_history[addr][_mid].blk <= _block) {
+                _min = _mid;
+            } else {
+                _max = _mid - 1;
+            }
+        }
+
+        Point memory upoint = user_point_history[addr][_min];
+        uint256 max_epoch = epoch;
+        uint256 _epoch = _findBlockEpoch(_block, max_epoch);
+        Point memory point_0 = point_history[_epoch];
+        uint256 d_block = 0;
+        uint256 d_t = 0;
+        if (_epoch < max_epoch) {
+            Point memory point_1 = point_history[_epoch + 1];
+            d_block = point_1.blk - point_0.blk;
+            d_t = point_1.ts - point_0.ts;
+        } else {
+            d_block = block.number - point_0.blk;
+            d_t = block.timestamp - point_0.ts;
+        }
+        uint256 block_time = point_0.ts;
+        if (d_block != 0) {
+            block_time += (d_t * (_block - point_0.blk)) / d_block;
+        }
+
+        uint256 timeDiff = block_time - upoint.ts;
+        upoint.bias +=
+            upoint.slope *
+            int128(
+                uint128(
+                    calculatePercentage(
+                        timeDiff,
+                        10000 - IVeTokenSettings(settings).advancePercentage()
+                    )
+                )
+            );
+        if (upoint.bias >= 0) {
+            return uint256(int256(upoint.bias));
+        } else {
+            return 0;
+        }
+    }
+
+    /// @inheritdoc IVeToken
+    function totalLocked() external view returns (uint256) {
+        return supply;
+    }
+
+    /**
+        @notice add checkpoints to pointHistory for every week from last added checkpoint until now
+        @dev block number for each added checkpoint is estimated by their respective timestamp and the blockslope
+            where the blockslope is estimated by the last added time/block point and the current time/block point
+        @dev pointHistory include all weekly global checkpoints and some additional in-week global checkpoints
+    */
     function _updatePoints(Point memory last_point) internal {
         uint256 _epoch = epoch;
         uint256 last_checkpoint = last_point.ts;
@@ -181,6 +386,10 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         epoch = _epoch;
     }
 
+    /// @notice Record global and per-user data to checkpoint
+    /// @param addr User wallet address. No user checkpoint if 0x0
+    /// @param old_locked Previous locked balance / end lock time for the user
+    /// @param new_locked New locked balance / end lock time for the user
     function _checkpoint(
         address addr,
         LockedBalance memory old_locked,
@@ -302,6 +511,12 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         }
     }
 
+    /// @notice Deposit and lock tokens for a user
+    /// @param _addr Address of the user
+    /// @param _value Amount of tokens to deposit
+    /// @param unlock_time Time when the tokens will be unlocked
+    /// @param locked_balance Previous locked balance of the user / timestamp
+    /// @param _action_type Type of action
     function _depositFor(
         address _addr,
         uint256 _value,
@@ -331,68 +546,11 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         emit Supply(supply_before, supply);
     }
 
-    function checkpoint() external override {
-        _checkpoint(ZERO_ADDRESS, LockedBalance(0, 0), LockedBalance(0, 0));
-    }
-
-    function deposit(uint256 _value) external override nonReentrant {
-        require(msg.sender == tx.origin, "No contracts allowed");
-        require(_value > 0, "Need non-zero value");
-        LockedBalance memory _locked = locked[msg.sender];
-
-        if (_locked.amount > 0) {
-            require(
-                _locked.end > block.timestamp,
-                "Cannot add to expired lock. Withdraw"
-            );
-
-            _depositFor(
-                msg.sender,
-                _value,
-                0,
-                _locked,
-                ActionType.INCREASE_LOCK_AMOUNT
-            );
-        } else {
-            uint256 currentTime = block.timestamp;
-            uint256 unlock_time = ((currentTime +
-                uint256(int256(IVeTokenSettings(settings).locktime()))) /
-                WEEK) * WEEK; // Locktime rounded down to weeks
-
-            require(currentTime >= 0, "Current time exceeds int128 limits");
-            require(_locked.amount == 0, "Withdraw old tokens first");
-
-            _depositFor(
-                msg.sender,
-                _value,
-                unlock_time,
-                _locked,
-                ActionType.DEPOSIT
-            );
-        }
-    }
-
-    function withdraw() external override nonReentrant {
-        LockedBalance memory _locked = locked[msg.sender];
-
-        uint256 value = uint256(int256(_locked.amount));
-
-        LockedBalance memory old_locked = _locked;
-        _locked.end = 0;
-        _locked.amount = 0;
-        locked[msg.sender] = _locked;
-        uint256 supply_before = supply;
-        supply = supply_before - value;
-
-        _checkpoint(msg.sender, old_locked, _locked);
-
-        IERC20(token).safeTransfer(msg.sender, value);
-
-        emit Withdraw(msg.sender, value, block.timestamp);
-        emit Supply(supply_before, supply_before - value);
-    }
-
-    function findBlockEpoch(
+    /// @notice Binary search to estimate timestamp for block number
+    /// @param _block Block number to estimate timestamp for
+    /// @param max_epoch Don't go beyond this epoch
+    /// @return Estimated timestamp for block number
+    function _findBlockEpoch(
         uint256 _block,
         uint256 max_epoch
     ) internal view returns (uint256) {
@@ -414,131 +572,5 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         }
 
         return _min;
-    }
-
-    function balanceOf(address addr) external view override returns (uint256) {
-        uint256 _epoch = user_point_epoch[addr];
-        if (_epoch == 0 || locked[addr].end == 0) {
-            return 0;
-        } else {
-            Point memory last_point = user_point_history[addr][_epoch];
-
-            if (locked[addr].end > block.timestamp) {
-                // When the lock has not expired yet
-                uint256 timeDiff = (block.timestamp - last_point.ts);
-
-                last_point.bias +=
-                    last_point.slope *
-                    int128(
-                        uint128(
-                            calculatePercentage(
-                                timeDiff,
-                                10000 -
-                                    IVeTokenSettings(settings)
-                                        .advancePercentage()
-                            )
-                        )
-                    );
-            } else {
-                // When the lock has expired
-                uint256 timeDiff = (locked[addr].end - last_point.ts);
-
-                last_point.bias +=
-                    last_point.slope *
-                    int128(
-                        uint128(
-                            calculatePercentage(
-                                timeDiff,
-                                10000 -
-                                    IVeTokenSettings(settings)
-                                        .advancePercentage()
-                            )
-                        )
-                    );
-            }
-
-            return uint256(int256(last_point.bias));
-        }
-    }
-
-    function balanceOfAt(
-        address addr,
-        uint256 _block
-    ) external view override returns (uint256) {
-        require(_block <= block.number, "Block number too high");
-
-        uint256 _min = 0;
-        uint256 _max = user_point_epoch[addr];
-        for (uint256 i = 0; i < 128; i++) {
-            if (_min >= _max) {
-                break;
-            }
-            uint256 _mid = (_min + _max + 1) / 2;
-            if (user_point_history[addr][_mid].blk <= _block) {
-                _min = _mid;
-            } else {
-                _max = _mid - 1;
-            }
-        }
-
-        Point memory upoint = user_point_history[addr][_min];
-        uint256 max_epoch = epoch;
-        uint256 _epoch = findBlockEpoch(_block, max_epoch);
-        Point memory point_0 = point_history[_epoch];
-        uint256 d_block = 0;
-        uint256 d_t = 0;
-        if (_epoch < max_epoch) {
-            Point memory point_1 = point_history[_epoch + 1];
-            d_block = point_1.blk - point_0.blk;
-            d_t = point_1.ts - point_0.ts;
-        } else {
-            d_block = block.number - point_0.blk;
-            d_t = block.timestamp - point_0.ts;
-        }
-        uint256 block_time = point_0.ts;
-        if (d_block != 0) {
-            block_time += (d_t * (_block - point_0.blk)) / d_block;
-        }
-
-        uint256 timeDiff = block_time - upoint.ts;
-        upoint.bias +=
-            upoint.slope *
-            int128(
-                uint128(
-                    calculatePercentage(
-                        timeDiff,
-                        10000 - IVeTokenSettings(settings).advancePercentage()
-                    )
-                )
-            );
-        if (upoint.bias >= 0) {
-            return uint256(int256(upoint.bias));
-        } else {
-            return 0;
-        }
-    }
-
-    function _findGlobalTimestampEpoch(
-        uint256 ts
-    ) internal view returns (uint256) {
-        uint256 min = 0;
-        uint256 max = epoch;
-
-        for (uint256 i = 0; i < 128; i++) {
-            if (min >= max) {
-                break;
-            }
-            uint256 mid = (min + max + 1) / 2;
-            if (point_history[mid].ts <= ts) {
-                min = mid;
-            } else {
-                max = mid - 1;
-            }
-        }
-        return min;
-    }
-
-    function totalLocked() external view returns (uint256) {
-        return supply;
     }
 }

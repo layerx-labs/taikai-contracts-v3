@@ -34,14 +34,18 @@ interface IVeToken {
     function withdraw() external;
 
     /// @notice Retrieves the balance of tokens for a specific address.
+    /// NOTE:The following ERC20/minime-compatible methods are not real balanceOf!!
+    /// They measure the weights for the purpose of voting, so they don't represent real coins.
     /// @param addr The address of the account.
-    /// @return The balance of tokens for the specified address.
+    /// @return The balance of tokens (VotingPower) for the specified address.
     function balanceOf(address addr) external view returns (uint256);
 
     /// @notice Retrieves the balance of tokens for a specific address at a specific block.
+    /// NOTE:The following ERC20/minime-compatible methods are not real balanceOfAt!!
+    /// They measure the weights for the purpose of voting, so they don't represent real coins.
     /// @param addr The address of the account.
     /// @param _block The block number.
-    /// @return The balance of tokens for the specified address at the specified block.
+    /// @return The balance of tokens (VotingPower) for the specified address at the specified block.
     function balanceOfAt(
         address addr,
         uint256 _block
