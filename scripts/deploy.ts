@@ -27,13 +27,19 @@ async function main() {
   await pop.deployed();
   console.log('POP Smart Contract deployed to:', pop.address);
 
+  // Deploy VeTKAI Settings
+  const veTKAISettings = await (
+    await ethers.getContractFactory('VeTokenSettings')
+  ).deploy();
+
   // Deploy VeTKAI Contract
   const VotingEscrow = await ethers.getContractFactory('VeToken');
   const VeTKAI = await VotingEscrow.deploy(
     kai.address,
     'TAIKAI Voting Escrow',
     'veTKAI',
-    '1.0.0'
+    '1.0.0',
+    veTKAISettings.address
   );
   await VeTKAI.deployed();
   console.log('\nVeTKAI Smart Contract deployed to:', VeTKAI.address);

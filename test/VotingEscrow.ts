@@ -49,10 +49,6 @@ describe('Voting Escrow (veTKAI)', function () {
     return Math.floor(86400 * days);
   }
 
-  function secondsToDays(seconds: number | bigint | string) {
-    return Math.floor(Number((BigInt(seconds) / 86400n).toString()));
-  }
-
   describe('Deployment', function () {
     it('Checks Contract Metadata', async function () {
       const { VeTKAI, veTKAISettings, tkai } = await loadFixture(
