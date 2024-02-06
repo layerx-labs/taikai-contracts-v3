@@ -28,10 +28,13 @@ interface IVeToken {
 
     /// @notice Deposits tokens into the VeToken contract.
     /// @param _value The amount of tokens to deposit.
+    /// @dev This emits the {Deposit} and {Supply} events.
     function deposit(uint256 _value) external;
 
-    /// @notice Withdraws tokens from the VeToken contract.
-    function withdraw() external;
+    /// @notice Withdraws the `_amount` of tokens from the VeToken contract.
+    /// @param _amount The amount of tokens to withdraw.
+    /// @dev This emits the {Withdraw} and {Supply} events.
+    function withdraw(uint256 _amount) external;
 
     /// @notice Retrieves the balance of tokens for a specific address.
     /// NOTE:The following ERC20/minime-compatible methods are not real balanceOf!!

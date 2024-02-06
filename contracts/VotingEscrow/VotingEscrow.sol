@@ -192,24 +192,30 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IVeToken
-    function withdraw() external override nonReentrant {
+    function withdraw(uint256 _amount) external override nonReentrant {
         LockedBalance memory _locked = locked[msg.sender];
-
-        uint256 value = uint256(int256(_locked.amount));
-
         LockedBalance memory old_locked = _locked;
-        _locked.end = 0;
-        _locked.amount = 0;
+
+        require(
+            uint256(uint128(_locked.amount)) >= _amount,
+            "Insufficient balance"
+        );
+
+        _locked.amount -= int128(uint128(_amount));
+
+        if (_locked.amount == 0) {
+            _locked.end = 0;
+        }
         locked[msg.sender] = _locked;
         uint256 supply_before = supply;
-        supply = supply_before - value;
+        supply = supply_before - _amount;
 
         _checkpoint(msg.sender, old_locked, _locked);
 
-        IERC20(token).safeTransfer(msg.sender, value);
+        IERC20(token).safeTransfer(msg.sender, _amount);
 
-        emit Withdraw(msg.sender, value, block.timestamp);
-        emit Supply(supply_before, supply_before - value);
+        emit Withdraw(msg.sender, _amount, block.timestamp);
+        emit Supply(supply_before, supply_before - _amount);
     }
 
     /// @inheritdoc IVeToken
