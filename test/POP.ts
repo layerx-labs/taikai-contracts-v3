@@ -1,77 +1,75 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import { STAGING_ACCOUNTS_ADDRESSES, ZERO_ADDRESS } from "../config/constants";
-import { POP } from "../typechain-types";
+import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import { ZERO_ADDRESS } from '../config/constants';
+import { POP } from '../typechain-types';
 
-describe("POP", function () {
-
+describe('POP', function () {
   async function deployContract() {
     // Contracts are deployed using the first signer/account by default
-    const [owner] = await ethers.getSigners();
-    const POP = await ethers.getContractFactory("POP");
-    const pop = await POP.deploy("Proof Of Participation", "POP", owner.address);
-    return { owner, pop };
+    const signers = await ethers.getSigners();
+    const [owner, alice, bob] = signers;
+    const POP = await ethers.getContractFactory('POP');
+    const pop = await POP.deploy(
+      'Proof Of Participation',
+      'POP',
+      owner.address
+    );
+    return { owner, alice, bob, pop };
   }
 
-  describe("Deployment", function () {
-    let pop: POP, owner: SignerWithAddress
+  describe('Deployment', function () {
+    let pop: POP,
+      owner: SignerWithAddress,
+      alice: SignerWithAddress,
+      bob: SignerWithAddress;
 
     beforeEach(async () => {
-      ({ pop, owner } = await loadFixture(deployContract));
-    })
-
-    it("Mint Event", async () => {
-      await expect(await pop.mint(STAGING_ACCOUNTS_ADDRESSES[0], '')).to.emit(
-        pop,
-        "Transfer"
-      ).withArgs(
-        ZERO_ADDRESS,
-        STAGING_ACCOUNTS_ADDRESSES[0],
-        0
-      )
+      ({ pop, owner, alice, bob } = await loadFixture(deployContract));
     });
 
-    it("Pause Event", async () => {
-      await expect(await pop.pause()).to.emit(
-        pop,
-        "Paused"
-      ).withArgs(
-        STAGING_ACCOUNTS_ADDRESSES[0],
-      )
+    it('Mint Event', async () => {
+      await expect(await pop.mint(owner.address, ''))
+        .to.emit(pop, 'Transfer')
+        .withArgs(ZERO_ADDRESS, owner.address, 0);
+    });
+
+    it('Pause Event', async () => {
+      await expect(await pop.pause())
+        .to.emit(pop, 'Paused')
+        .withArgs(owner.address);
     });
 
     // Test soulbound token
-    // TODO: Expect revert instead of balance check
-    it("Soulbound transfer", async () => {
-      await pop.mint(STAGING_ACCOUNTS_ADDRESSES[1], '');
-      await pop.transferFrom(
-        STAGING_ACCOUNTS_ADDRESSES[1], STAGING_ACCOUNTS_ADDRESSES[2], 0
-      )
+    it('Soulbound transfer', async () => {
+      await pop.mint(alice.address, '');
 
-      expect(await pop.balanceOf(STAGING_ACCOUNTS_ADDRESSES[1])).to.equals(1)
+      await expect(pop.transferFrom(alice.address, bob.address, 0)).to.be
+        .reverted;
     });
 
-    it("Transfer contract ownership", async function () {
+    it('Transfer contract ownership', async function () {
       expect(await pop.owner()).to.equal(owner.address);
 
-      await pop.transferOwnership(STAGING_ACCOUNTS_ADDRESSES[1]);
+      await pop.transferOwnership(alice.address);
 
-      expect(await pop.owner()).to.equal(STAGING_ACCOUNTS_ADDRESSES[1]);
+      expect(await pop.owner()).to.equal(alice.address);
     });
 
-    it("Mint while paused", async function () {
+    it('Mint while paused', async function () {
       await pop.pause();
 
-      await expect(pop.mint(STAGING_ACCOUNTS_ADDRESSES[0], '')).to.be.reverted;
+      await expect(pop.mint(owner.address, '')).to.be.revertedWith(
+        'Pausable: paused'
+      );
     });
 
-    it("getNextId value", async function () {
-      await pop.mint(STAGING_ACCOUNTS_ADDRESSES[0], '')
+    it('getNextId value', async function () {
+      await pop.mint(owner.address, '');
       expect(await pop.getNextId()).to.equals(1);
 
-      await pop.mint(STAGING_ACCOUNTS_ADDRESSES[0], '')
+      await pop.mint(owner.address, '');
       expect(await pop.getNextId()).to.equals(2);
     });
   });
