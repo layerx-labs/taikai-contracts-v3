@@ -43,6 +43,13 @@ const config: HardhatUserConfig = {
   },
   defaultNetwork: 'local',
   networks: {
+    hardhat: {
+      accounts: {
+        accountsBalance: '100000000'.concat('0'.repeat(18)), // 100000000 ETH
+      },
+      blockGasLimit: 20995106510310,
+      initialBaseFeePerGas: 7,
+    },
     local: {
       chainId: 1337,
       url: 'http://127.0.0.1:8545',
