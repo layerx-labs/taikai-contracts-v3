@@ -41,7 +41,7 @@ const config: HardhatUserConfig = {
   gasReporter: {
     enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
   },
-  defaultNetwork: 'local',
+  defaultNetwork: 'hardhat',
   networks: {
     hardhat: {
       accounts: {
