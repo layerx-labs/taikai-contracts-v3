@@ -345,5 +345,19 @@ describe('Voting Escrow (veTKAI)', function () {
         )
         .and.lessThanOrEqual(oldAliceVeTkaiBalance.toBigInt() * 2n);
     });
+
+    it('Revert on not allowed erc20 methods', async function () {
+      const { VeTKAI, alice, owner } = await loadFixture(deployContract);
+
+      await expect(VeTKAI.allowance(owner.address, alice.address)).to.be
+        .reverted;
+      await expect(VeTKAI.transfer(alice.address, withDecimal('ten'))).to.be
+        .reverted;
+      await expect(VeTKAI.approve(alice.address, withDecimal('ten'))).to.be
+        .reverted;
+      await expect(
+        VeTKAI.transferFrom(owner.address, alice.address, withDecimal('ten'))
+      ).to.be.reverted;
+    });
   });
 });
