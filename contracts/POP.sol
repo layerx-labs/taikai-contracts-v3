@@ -48,5 +48,7 @@ contract POP is ERC721URIStorage, Ownable, Pausable {
     /** POP is not transferable */
     function transferFrom(address, address, uint256) public virtual override(ERC721, IERC721) { revert(); }
     function safeTransferFrom(address, address, uint256) public virtual override(ERC721, IERC721)  { revert(); }
-    function safeTransferFrom(address, address, uint256, bytes memory) public virtual override(ERC721, IERC721)  { revert(); }
+    function safeTransferFrom(address, address, uint256, bytes memory) public virtual override(ERC721, IERC721)  { 
+        revert(); 
+    }
 }
