@@ -83,20 +83,20 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         string memory _version,
         address _settings
     ) Ownable() ReentrancyGuard() {
+        require(
+            _token_addr != address(0),
+            "_token_addr cannot be zero address"
+        );
         token = _token_addr;
         point_history[0].blk = block.number;
         point_history[0].ts = block.timestamp;
 
         uint8 decimals_ = IERC20Metadata(_token_addr).decimals();
+        require(
+            decimals_ <= 255 && decimals_ >= 0,
+            "Decimals should be between 0 to 255"
+        );
         settings = _settings;
-        require(
-            _token_addr != address(0),
-            "_token_addr cannot be zero address"
-        );
-        require(
-            decimals_ <= 255,
-            "Decimals should be less than or equal to 255"
-        );
         decimals = decimals_;
         name = _name;
         symbol = _symbol;
@@ -127,36 +127,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IVeToken
-    function userPointHistoryTs(
-        address addr,
-        uint256 idx
-    ) external view override returns (uint256) {
-        return user_point_history[addr][idx].ts;
-    }
-
-    /// @inheritdoc IVeToken
     function lockedEnd(address addr) external view override returns (uint256) {
         return locked[addr].end;
-    }
-
-    /**
-        @dev Check if the given address is a zero address.
-        @param addr The address to check.
-        @return True if the address is a zero address, otherwise false.
-     */
-    function isZeroAddress(address addr) internal pure returns (bool) {
-        return addr == ZERO_ADDRESS;
-    }
-
-    /// @inheritdoc IVeToken
-    function checkpoint() external override {
-        _checkpoint(ZERO_ADDRESS, LockedBalance(0, 0), LockedBalance(0, 0));
     }
 
     /// @inheritdoc IVeToken
     function deposit(uint256 _value) external override nonReentrant {
         require(msg.sender == tx.origin, "No contracts allowed");
-        require(_value > 0, "Need non-zero value");
+        require(_value > 0, "Value should be greater than 0");
         LockedBalance memory _locked = locked[msg.sender];
 
         if (_locked.amount > 0) {
@@ -177,9 +155,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             uint256 unlock_time = ((currentTime +
                 uint256(int256(IVeTokenSettings(settings).locktime()))) /
                 WEEK) * WEEK; // Locktime rounded down to weeks
-
-            require(currentTime >= 0, "Current time exceeds int128 limits");
-            require(_locked.amount == 0, "Withdraw old tokens first");
 
             _depositFor(
                 msg.sender,
@@ -265,65 +240,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IVeToken
-    function balanceOfAt(
-        address addr,
-        uint256 _block
-    ) external view override returns (uint256) {
-        require(_block <= block.number, "Block number too high");
-
-        uint256 _min = 0;
-        uint256 _max = user_point_epoch[addr];
-        for (uint256 i = 0; i < 128; i++) {
-            if (_min >= _max) {
-                break;
-            }
-            uint256 _mid = (_min + _max + 1) / 2;
-            if (user_point_history[addr][_mid].blk <= _block) {
-                _min = _mid;
-            } else {
-                _max = _mid - 1;
-            }
-        }
-
-        Point memory upoint = user_point_history[addr][_min];
-        uint256 max_epoch = epoch;
-        uint256 _epoch = _findBlockEpoch(_block, max_epoch);
-        Point memory point_0 = point_history[_epoch];
-        uint256 d_block = 0;
-        uint256 d_t = 0;
-        if (_epoch < max_epoch) {
-            Point memory point_1 = point_history[_epoch + 1];
-            d_block = point_1.blk - point_0.blk;
-            d_t = point_1.ts - point_0.ts;
-        } else {
-            d_block = block.number - point_0.blk;
-            d_t = block.timestamp - point_0.ts;
-        }
-        uint256 block_time = point_0.ts;
-        if (d_block != 0) {
-            block_time += (d_t * (_block - point_0.blk)) / d_block;
-        }
-
-        uint256 timeDiff = block_time - upoint.ts;
-        upoint.bias +=
-            upoint.slope *
-            int128(
-                uint128(
-                    calculatePercentage(
-                        timeDiff,
-                        10000 - IVeTokenSettings(settings).advancePercentage()
-                    )
-                )
-            );
-        if (upoint.bias >= 0) {
-            return uint256(int256(upoint.bias));
-        } else {
-            return 0;
-        }
-    }
-
-    /// @inheritdoc IVeToken
-    function totalLocked() external view returns (uint256) {
+    function totalSupply() external view override returns (uint256) {
         return supply;
     }
 
@@ -407,52 +324,48 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         int128 new_dslope = 0;
         uint256 _epoch = epoch;
 
-        if (!isZeroAddress(addr)) {
-            // Calculate slopes and biases
-            // Kept at zero when they have to
-            if (old_locked.end > block.timestamp && old_locked.amount > 0) {
-                u_old.slope =
-                    old_locked.amount /
-                    IVeTokenSettings(settings).locktime();
-                u_old.bias = int128(
-                    uint128(
-                        calculatePercentage(
-                            uint256(uint128(u_old.slope)) *
-                                (old_locked.end - block.timestamp),
-                            IVeTokenSettings(settings).advancePercentage()
-                        )
+
+        // Calculate slopes and biases
+        // Kept at zero when they have to
+        if (old_locked.end > block.timestamp && old_locked.amount > 0) {
+            u_old.slope =
+                old_locked.amount /
+                IVeTokenSettings(settings).locktime();
+            u_old.bias = int128(
+                uint128(
+                    calculatePercentage(
+                        uint256(uint128(u_old.slope)) *
+                            (old_locked.end - block.timestamp),
+                        IVeTokenSettings(settings).advancePercentage()
                     )
-                );
-            }
-
-            if (new_locked.end > block.timestamp && new_locked.amount > 0) {
-                u_new.slope =
-                    new_locked.amount /
-                    IVeTokenSettings(settings).locktime();
-                u_new.bias = int128(
-                    uint128(
-                        calculatePercentage(
-                            uint256(uint128(u_new.slope)) *
-                                (new_locked.end - block.timestamp),
-                            IVeTokenSettings(settings).advancePercentage()
-                        )
-                    )
-                );
-            }
-
-            // Read values of scheduled changes in the slope
-            // old_locked.end can be in the past and in the future
-            // new_locked.end can ONLY by in the FUTURE unless everything expired: than zeros
-            old_dslope = slope_changes[old_locked.end];
-
-            if (new_locked.end != 0) {
-                if (new_locked.end == old_locked.end) {
-                    new_dslope = old_dslope;
-                } else {
-                    new_dslope = slope_changes[new_locked.end];
-                }
-            }
+                )
+            );
         }
+
+        if (new_locked.end > block.timestamp && new_locked.amount > 0) {
+            u_new.slope =
+                new_locked.amount /
+                IVeTokenSettings(settings).locktime();
+            u_new.bias = int128(
+                uint128(
+                    calculatePercentage(
+                        uint256(uint128(u_new.slope)) *
+                            (new_locked.end - block.timestamp),
+                        IVeTokenSettings(settings).advancePercentage()
+                    )
+                )
+            );
+        }
+
+        // Read values of scheduled changes in the slope
+        // old_locked.end can be in the past and in the future
+        // new_locked.end can ONLY by in the FUTURE unless everything expired: than zeros
+        old_dslope = slope_changes[old_locked.end];
+
+        if (new_locked.end != 0) {
+            new_dslope = old_dslope;
+        }
+        
 
         Point memory last_point = Point({
             bias: 0,
@@ -470,51 +383,43 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
         _updatePoints(last_point);
 
-        if (!isZeroAddress(addr)) {
-            // If last point was in this block, the slope change has been applied already
-            // But in such case we have 0 slope(s)
-            last_point.slope += (u_new.slope - u_old.slope);
-            last_point.bias += (u_new.bias - u_old.bias);
-            if (last_point.slope < 0) {
-                last_point.slope = 0;
-            }
-            if (last_point.bias < 0) {
-                last_point.bias = 0;
-            }
+
+        // If last point was in this block, the slope change has been applied already
+        // But in such case we have 0 slope(s)
+        last_point.slope += (u_new.slope - u_old.slope);
+        last_point.bias += (u_new.bias - u_old.bias);
+        if (last_point.slope < 0) {
+            last_point.slope = 0;
         }
+        if (last_point.bias < 0) {
+            last_point.bias = 0;
+        }
+        
 
         // Record the changed point into history
         point_history[_epoch] = last_point;
 
-        if (!isZeroAddress(addr)) {
-            // Schedule the slope changes (slope is going down)
-            // We subtract new_user_slope from [new_locked.end]
-            // and add old_user_slope to [old_locked.end]
-            if (old_locked.end > block.timestamp) {
-                // old_dslope was <something> - u_old.slope, so we cancel that
-                old_dslope += u_old.slope;
-                if (new_locked.end == old_locked.end) {
-                    old_dslope -= u_new.slope; // It was a new deposit, not extension
-                }
-                slope_changes[old_locked.end] = old_dslope;
+
+        // Schedule the slope changes (slope is going down)
+        // We subtract new_user_slope from [new_locked.end]
+        // and add old_user_slope to [old_locked.end]
+        if (old_locked.end > block.timestamp) {
+            // old_dslope was <something> - u_old.slope, so we cancel that
+            old_dslope += u_old.slope;
+            if (new_locked.end == old_locked.end) {
+                old_dslope -= u_new.slope; // It was a new deposit, not extension
             }
-
-            if (new_locked.end > block.timestamp) {
-                if (new_locked.end > old_locked.end) {
-                    new_dslope -= u_new.slope; // old slope disappeared at this point
-                    slope_changes[new_locked.end] = new_dslope;
-                }
-                // else: we recorded it already in old_dslope
-            }
-
-            // Now handle user history
-            uint256 user_epoch = user_point_epoch[addr] + 1;
-
-            user_point_epoch[addr] = user_epoch;
-            u_new.ts = block.timestamp;
-            u_new.blk = block.number;
-            user_point_history[addr][user_epoch] = u_new;
+            slope_changes[old_locked.end] = old_dslope;
         }
+
+        // Now handle user history
+        uint256 user_epoch = user_point_epoch[addr] + 1;
+
+        user_point_epoch[addr] = user_epoch;
+        u_new.ts = block.timestamp;
+        u_new.blk = block.number;
+        user_point_history[addr][user_epoch] = u_new;
+        
     }
 
     /// @notice Deposit and lock tokens for a user
@@ -552,31 +457,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         emit Supply(supply_before, supply);
     }
 
-    /// @notice Binary search to estimate timestamp for block number
-    /// @param _block Block number to estimate timestamp for
-    /// @param max_epoch Don't go beyond this epoch
-    /// @return Estimated timestamp for block number
-    function _findBlockEpoch(
-        uint256 _block,
-        uint256 max_epoch
-    ) internal view returns (uint256) {
-        uint256 _min = 0;
-        uint256 _max = max_epoch;
-
-        for (uint256 i = 0; i < 128; i++) {
-            // 128 iterations will always be enough for 128-bit numbers
-            if (_min >= _max) {
-                break;
-            }
-
-            uint256 _mid = (_min + _max + 1) / 2;
-            if (point_history[_mid].blk <= _block) {
-                _min = _mid;
-            } else {
-                _max = _mid - 1;
-            }
-        }
-
-        return _min;
-    }
+    function allowance(address, address) external pure override returns (uint256){ revert(); }
+    function transfer(address, uint256) external pure override  returns (bool) { revert();}
+    function approve(address, uint256) external pure override  returns (bool) { revert();}
+    function transferFrom(address, address, uint256) external pure override  returns (bool) { revert();}
 }
