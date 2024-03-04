@@ -6,10 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title IVeToken
 /// @notice Interface for VeToken functionality.
 interface IVeToken is IERC20{
-    /// @notice Retrieves the last user slope.
-    /// @param addr The address of the user.
-    /// @return The last user slope.
-    function getLastUserSlope(address addr) external view returns (int128);
 
     /// @notice Retrieves the end timestamp of the lock for a user.
     /// @param addr The address of the user.
@@ -19,6 +15,9 @@ interface IVeToken is IERC20{
     /// @notice Deposits tokens into the VeToken contract.
     /// @param _value The amount of tokens to deposit.
     /// @dev This emits the {Deposit} and {Supply} events.
+    /// `_value` is (unsafely) downcasted from `uint256` to `int128`
+    /// and `_unlockTime` is (unsafely) downcasted from `uint256` to `uint96`
+    /// assuming that the values never reach the respective max values
     function deposit(uint256 _value) external;
 
     /// @notice Withdraws the `_amount` of tokens from the VeToken contract.
@@ -33,7 +32,7 @@ interface IVeToken is IERC20{
     /// @return The balance of tokens (VotingPower) for the specified address.
     function balanceOf(address addr) external view returns (uint256);
 
-    /// @notice Retrieves the total amount of tokens locked.
-    /// @return The total amount of tokens locked.
+    /// @notice Calculate current total supply of voting power
+    /// @return Current totalSupply
     function totalSupply() external view returns (uint256);
 }
