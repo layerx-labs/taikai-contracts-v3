@@ -12,7 +12,7 @@ import { IVeTokenSettings } from "./IVeTokenSettings.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import  { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IVeToken } from "./IVeToken.sol";
-import 'hardhat/console.sol';
+
 
 /// @title VeToken
 /// @notice This contract represents a token with locking functionality.
@@ -119,20 +119,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         version = _version;
         settings = _settings;
     }
-        /**
-        @dev Calculate the percentage of a number.
-        @param whole The whole number.
-        @param percentage The percentage.
-        NOTE: The percentage must be multiplied by 100 to avoid floating point numbers.
-                Eg.: 10% should be passed as 1000. 100% should be passed as 10000.
-        @return The percentage of the whole number.
-     */
-    function calculatePercentage(
-        uint256 whole,
-        uint16 percentage
-    ) internal pure returns (uint256) {
-        return (whole * percentage) / 10000;
-    }
+
 
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ ///
     ///       LOCK MANAGEMENT       ///
