@@ -8,7 +8,7 @@ export const STAGING_NETWORKS = {
       },
       eden: {
         chainId: 1601,
-        url: "https://eth-eden.taikai.network:18080",
+        url: "https://eth-eden.taikai.network",
         accounts: STAGING_ACCOUNTS_PKEYS
       },
       gaia: {
