@@ -10,3 +10,4 @@ cache
 artifacts
 taikai-contracts-v3-1.0.0.tgz
 .DS_Store
+.vscode
