@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.18;
 
-import {
-    SafeERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {
-    IERC20Metadata
-} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IVeTokenSettings } from "./IVeTokenSettings.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import  { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { IVeToken } from "./IVeToken.sol";
-
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IVeTokenSettings} from "./IVeTokenSettings.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {IVeToken} from "./IVeToken.sol";
 
 /// @title VeToken
 /// @notice This contract represents a token with locking functionality.
@@ -37,11 +32,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         ActionType indexed action,
         uint256 ts
     );
-    event Withdraw(
-        address indexed provider,
-        uint256 value,
-        uint256 ts
-    );
+    event Withdraw(address indexed provider, uint256 value, uint256 ts);
 
     // Shared global state
     IERC20 public immutable token;
@@ -65,7 +56,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string public version;
     address public settings;
 
-
     // Structs
     struct Point {
         int128 bias;
@@ -75,7 +65,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
     struct LockedBalance {
         int128 amount;
-        uint96 end;
+        uint256 end;
+        uint256 start;
     }
 
     // Miscellaneous
@@ -84,7 +75,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         INCREASE_LOCK_AMOUNT
     }
 
-   /**
+    /**
         @notice Constructor to initialize the VeToken contract.
         @param _token The address of the token (Eg.: TKAI address).
         @param _name The name for this VeToken.
@@ -98,11 +89,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         string memory _symbol,
         string memory _version,
         address _settings
-    ) Ownable() ReentrancyGuard(){
-         require(
-            _token != address(0),
-            "_token cannot be zero address"
-        );
+    ) Ownable() ReentrancyGuard() {
+        require(_token != address(0), "_token cannot be zero address");
         token = IERC20(_token);
         pointHistory[0] = Point({
             bias: int128(0),
@@ -112,14 +100,16 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         });
 
         decimals = IERC20Metadata(_token).decimals();
-        require(decimals <= 18 && decimals >= 6,  "Decimals should be between 6 to 18");
+        require(
+            decimals <= 18 && decimals >= 6,
+            "Decimals should be between 6 to 18"
+        );
 
         name = _name;
         symbol = _symbol;
         version = _version;
         settings = _settings;
     }
-
 
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ ///
     ///       LOCK MANAGEMENT       ///
@@ -144,7 +134,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         int128 oldSlopeDelta = 0;
         int128 newSlopeDelta = 0;
         uint256 epoch = globalEpoch;
-
         if (_addr != address(0)) {
             // Calculate slopes and biases
             // Kept at zero when they have to
@@ -154,19 +143,19 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             if (_oldLocked.end > block.timestamp && _oldLocked.amount > 0) {
                 userOldPoint.slope =
                     _oldLocked.amount /
-                     IVeTokenSettings(settings).locktime();
+                    IVeTokenSettings(settings).locktime();
                 userOldPoint.bias =
                     userOldPoint.slope *
-                    int128(int256(_oldLocked.end - block.timestamp));
+                    int128(int256(block.timestamp - _oldLocked.start));
             }
             if (_newLocked.end > block.timestamp && _newLocked.amount > 0) {
                 userNewPoint.slope =
                     _newLocked.amount /
-                     IVeTokenSettings(settings).locktime();
+                    IVeTokenSettings(settings).locktime();
 
                 userNewPoint.bias =
                     userNewPoint.slope *
-                    int128(int256(_newLocked.end - block.timestamp));
+                    int128(int256(block.timestamp - _newLocked.start));
             }
 
             // Moved from bottom final if statement to resolve stack too deep err
@@ -194,13 +183,12 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             }
         }
 
-        Point memory lastPoint =
-            Point({
-                bias: 0,
-                slope: 0,
-                ts: block.timestamp,
-                blk: block.number
-            });
+        Point memory lastPoint = Point({
+            bias: 0,
+            slope: 0,
+            ts: block.timestamp,
+            blk: block.number
+        });
         if (epoch > 0) {
             lastPoint = pointHistory[epoch];
         }
@@ -209,8 +197,12 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         // initialLastPoint is used for extrapolation to calculate block number
         // (approximately, for *At methods) and save them
         // as we cannot figure that out exactly from inside the contract
-        Point memory initialLastPoint =
-            Point({ bias: 0, slope: 0, ts: lastPoint.ts, blk: lastPoint.blk });
+        Point memory initialLastPoint = Point({
+            bias: 0,
+            slope: 0,
+            ts: lastPoint.ts,
+            blk: lastPoint.blk
+        });
         uint256 blockSlope = 0; // dblock/dt
         if (block.timestamp > lastPoint.ts) {
             blockSlope =
@@ -232,9 +224,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             } else {
                 dSlope = slopeChanges[iterativeTime];
             }
-            int128 biasDelta =
-                lastPoint.slope *
-                    int128(int256((iterativeTime - lastCheckpoint)));
+            int128 biasDelta = lastPoint.slope *
+                int128(int256((iterativeTime - lastCheckpoint)));
             lastPoint.bias = lastPoint.bias + biasDelta;
             lastPoint.slope = lastPoint.slope + dSlope;
             // This can happen
@@ -260,7 +251,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             } else {
                 pointHistory[epoch] = lastPoint;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         globalEpoch = epoch;
@@ -311,11 +304,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IVeToken
-    function deposit(uint256 _value)
-        external
-        override
-        nonReentrant
-    {
+    function deposit(uint256 _value) external override nonReentrant {
         require(msg.sender == tx.origin, "No contracts allowed");
         require(_value > 0, "Value should be greater than 0");
         LockedBalance memory locked_ = locked[msg.sender];
@@ -327,8 +316,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             );
             _increaseAmount(_value);
         } else {
-            uint256 unlock_time = _floorToWeek(block.timestamp +
-                    uint256(int256(IVeTokenSettings(settings).locktime()))); // Locktime is rounded down to weeks
+            uint256 unlock_time = block.timestamp +
+                uint256(int256(IVeTokenSettings(settings).locktime()));
             // Update total supply of token deposited
             totalLocked = totalLocked + _value;
             // Update lock and voting power (checkpoint)
@@ -336,9 +325,10 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             // totalSupply of tokens is generally significantly lower than the int128.max
             // value (considering the max precision of 18 decimals enforced in the constructor)
             locked_.amount = locked_.amount + int128(int256(_value));
-            locked_.end = uint96(unlock_time);
+            locked_.end = unlock_time;
+            locked_.start = block.timestamp;
             locked[msg.sender] = locked_;
-            _checkpoint(msg.sender, LockedBalance(0, 0), locked_);
+            _checkpoint(msg.sender, LockedBalance(0, 0, 0), locked_);
             // Deposit locked tokens
             token.safeTransferFrom(msg.sender, address(this), _value);
             emit Deposit(
@@ -347,7 +337,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
                 unlock_time,
                 ActionType.DEPOSIT,
                 block.timestamp
-            );   
+            );
         }
     }
 
@@ -357,9 +347,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     /// Does record a new checkpoint for the lock
     /// `_value` is (unsafely) downcasted from `uint256` to `int128` assuming
     /// that the max value is never reached in practice
-    function _increaseAmount(uint256 _value)
-        internal
-    {
+    function _increaseAmount(uint256 _value) internal {
         LockedBalance memory locked_ = locked[msg.sender];
         // Validate inputs
         // Update totalLocked of token deposited
@@ -368,18 +356,17 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         uint256 unlockTime = locked_.end;
         ActionType action = ActionType.INCREASE_LOCK_AMOUNT;
         LockedBalance memory newLocked;
-            locked_.amount = locked_.amount + int128(int256(_value));
-            locked[msg.sender] = locked_;
+        locked_.amount = locked_.amount + int128(int256(_value));
+        locked[msg.sender] = locked_;
 
-            newLocked = _copyLock(locked_);
-            locked[msg.sender] = newLocked;
-            _checkpoint(msg.sender, locked_, newLocked);
+        newLocked = _copyLock(locked_);
+        locked[msg.sender] = newLocked;
+        _checkpoint(msg.sender, locked_, newLocked);
         // Checkpoint only for delegatee
         // Deposit locked tokens
         token.safeTransferFrom(msg.sender, address(this), _value);
         emit Deposit(msg.sender, _value, unlockTime, action, block.timestamp);
     }
-
 
     /// @inheritdoc IVeToken
     function withdraw(uint256 _amount) external override nonReentrant {
@@ -394,8 +381,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         totalLocked = totalLocked - _amount;
         // Update lock
         LockedBalance memory newLocked = _copyLock(locked_);
-        newLocked.amount = newLocked.amount - int128(uint128( _amount));
-         if (newLocked.amount == 0) {
+        newLocked.amount = newLocked.amount - int128(uint128(_amount));
+        if (newLocked.amount == 0) {
             newLocked.end = 0;
         }
 
@@ -415,15 +402,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~ ///
 
     // Creates a copy of a lock
-    function _copyLock(LockedBalance memory _locked)
-        internal
-        pure
-        returns (LockedBalance memory)
-    {
+    function _copyLock(
+        LockedBalance memory _locked
+    ) internal pure returns (LockedBalance memory) {
         return
             LockedBalance({
                 amount: _locked.amount,
-                end: _locked.end
+                end: _locked.end,
+                start: _locked.start
             });
     }
 
@@ -432,13 +418,13 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
         return (_t / WEEK) * WEEK;
     }
 
-
     /// @inheritdoc IVeToken
     function balanceOf(address _addr) external view override returns (uint256) {
         uint256 epoch = userPointEpoch[_addr];
         if (epoch == 0 || locked[_addr].end == 0) {
             return 0;
         }
+
         // Casting is safe given that checkpoints are recorded in the past
         // and are more frequent than every int128.max seconds
         Point memory lastPoint = userPointHistory[_addr][epoch];
@@ -446,33 +432,24 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             // When the lock has not expired yet
             lastPoint.bias +=
                 lastPoint.slope *
-                int128(
-                    uint128(
-                       block.timestamp - lastPoint.ts
-                    )
-                );
+                int128(uint128(block.timestamp - locked[_addr].start));
         } else {
-                // When the lock has expired
-                lastPoint.bias +=
-                    lastPoint.slope *
-                    int128(
-                        uint128(
-                          locked[_addr].end - lastPoint.ts
-                        )
-                    );
-            }
+            // When the lock has expired
+            lastPoint.bias +=
+                lastPoint.slope *
+                int128(uint128(locked[_addr].end - lastPoint.ts));
+        }
 
-            return uint256(int256(lastPoint.bias));
+        return uint256(int256(lastPoint.bias));
     }
 
     // Calculate total supply of voting power at a given time _t
     // _point is the most recent point before time _t
     // _t is the time at which to calculate supply
-    function _supplyAt(Point memory _point, uint256 _t)
-        internal
-        view
-        returns (uint256)
-    {
+    function _supplyAt(
+        Point memory _point,
+        uint256 _t
+    ) internal view returns (uint256) {
         Point memory lastPoint = _point;
         // Floor the timestamp to weekly interval
         uint256 iterativeTime = _floorToWeek(lastPoint.ts);
@@ -501,21 +478,38 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
             lastPoint.slope = lastPoint.slope + dSlope;
             lastPoint.ts = iterativeTime;
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         return uint256(uint128(lastPoint.bias));
     }
 
-     /// @inheritdoc IVeToken
+    /// @inheritdoc IVeToken
     function totalSupply() external view override returns (uint256) {
         uint256 epoch_ = globalEpoch;
         Point memory lastPoint = pointHistory[epoch_];
         return _supplyAt(lastPoint, block.timestamp);
     }
 
-    function allowance(address, address) external pure override returns (uint256){ revert(); }
-    function transfer(address, uint256) external pure override  returns (bool) { revert();}
-    function approve(address, uint256) external pure override  returns (bool) { revert();}
-    function transferFrom(address, address, uint256) external pure override  returns (bool) { revert();}
+    function allowance(
+        address,
+        address
+    ) external pure override returns (uint256) {
+        revert();
+    }
+    function transfer(address, uint256) external pure override returns (bool) {
+        revert();
+    }
+    function approve(address, uint256) external pure override returns (bool) {
+        revert();
+    }
+    function transferFrom(
+        address,
+        address,
+        uint256
+    ) external pure override returns (bool) {
+        revert();
+    }
 }
