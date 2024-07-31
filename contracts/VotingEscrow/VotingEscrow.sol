@@ -90,7 +90,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string memory version_,
     address settings_
   ) Ownable() ReentrancyGuard() {
-    require(token_ != address(0), "token cannot be zero address");
+    require(token_ != address(0), "token_ cannot be zero address");
     _token = IERC20(token_);
     _pointHistory[0] = Point({
       bias: int128(0),
