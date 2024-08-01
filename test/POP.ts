@@ -11,19 +11,12 @@ describe('POP', function () {
     const signers = await ethers.getSigners();
     const [owner, alice, bob] = signers;
     const POP = await ethers.getContractFactory('POP');
-    const pop = await POP.deploy(
-      'Proof Of Participation',
-      'POP',
-      owner.address
-    );
+    const pop = await POP.deploy('Proof Of Participation', 'POP', owner.address);
     return { owner, alice, bob, pop };
   }
 
   describe('Deployment', function () {
-    let pop: POP,
-      owner: SignerWithAddress,
-      alice: SignerWithAddress,
-      bob: SignerWithAddress;
+    let pop: POP, owner: SignerWithAddress, alice: SignerWithAddress, bob: SignerWithAddress;
 
     beforeEach(async () => {
       ({ pop, owner, alice, bob } = await loadFixture(deployContract));
@@ -45,8 +38,7 @@ describe('POP', function () {
     it('Soulbound transfer', async () => {
       await pop.mint(alice.address, '');
 
-      await expect(pop.transferFrom(alice.address, bob.address, 0)).to.be
-        .reverted;
+      await expect(pop.transferFrom(alice.address, bob.address, 0)).to.be.reverted;
     });
 
     it('Transfer contract ownership', async function () {
@@ -60,9 +52,7 @@ describe('POP', function () {
     it('Mint while paused', async function () {
       await pop.pause();
 
-      await expect(pop.mint(owner.address, '')).to.be.revertedWith(
-        'Pausable: paused'
-      );
+      await expect(pop.mint(owner.address, '')).to.be.revertedWith('Pausable: paused');
     });
 
     it('getNextId value', async function () {

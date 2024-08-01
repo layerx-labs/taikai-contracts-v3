@@ -28,9 +28,7 @@ async function main() {
   console.log('POP Smart Contract deployed to:', pop.address);
 
   // Deploy VeTKAI Settings
-  const veTKAISettings = await (
-    await ethers.getContractFactory('VeTokenSettings')
-  ).deploy();
+  const veTKAISettings = await (await ethers.getContractFactory('VeTokenSettings')).deploy();
 
   // Deploy VeTKAI Contract
   const VotingEscrow = await ethers.getContractFactory('VeToken');
@@ -39,7 +37,7 @@ async function main() {
     'TAIKAI Voting Escrow',
     'veTKAI',
     '1.0.0',
-    veTKAISettings.address
+    veTKAISettings.address,
   );
   await VeTKAI.deployed();
   console.log('\nVeTKAI Smart Contract deployed to:', VeTKAI.address);
@@ -47,7 +45,7 @@ async function main() {
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
-main().catch(error => {
+main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });

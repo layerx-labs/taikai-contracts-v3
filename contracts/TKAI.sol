@@ -9,44 +9,42 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * Token has a fixed supply , transfers could be pause and token could not be burned
  * @title TKAI token
  */
-contract TKAI is ERC20PresetFixedSupply, ERC20Pausable,  Ownable {
-    
-    // Maximum supply is 300M TKAI
-    uint256 private constant _totalSupply = 300_000_000_000_000_000_000_000_000;
+contract TKAI is ERC20PresetFixedSupply, ERC20Pausable, Ownable {
+  // Maximum supply is 300M TKAI
+  uint256 private constant _totalSupply = 300_000_000_000_000_000_000_000_000;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        address owner
-        ) 
-        ERC20PresetFixedSupply(_name, _symbol, _totalSupply, owner ) 
-        ERC20Pausable()
-        Ownable()
-        {
-            transferOwnership(owner);        
-        }
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    address owner
+  ) ERC20PresetFixedSupply(_name, _symbol, _totalSupply, owner) ERC20Pausable() Ownable() {
+    transferOwnership(owner);
+  }
 
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override(ERC20, ERC20Pausable) {
-        ERC20Pausable._beforeTokenTransfer(from, to, amount);           
-    }
+  function _beforeTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+  ) internal override(ERC20, ERC20Pausable) {
+    ERC20Pausable._beforeTokenTransfer(from, to, amount);
+  }
 
-    function decimals() public pure override returns (uint8) {
-        return 18;
-    }
-    
-    function pause() external virtual onlyOwner {    
-        _pause();
-    }
+  function decimals() public pure override returns (uint8) {
+    return 18;
+  }
 
-    function unpause() external virtual onlyOwner {
-        _unpause();
-    }
-    
-    function burn(uint256) public pure override { revert(); }
-    function burnFrom(address, uint256) public pure override { revert();}
+  function pause() external virtual onlyOwner {
+    _pause();
+  }
 
+  function unpause() external virtual onlyOwner {
+    _unpause();
+  }
+
+  function burn(uint256) public pure override {
+    revert();
+  }
+  function burnFrom(address, uint256) public pure override {
+    revert();
+  }
 }

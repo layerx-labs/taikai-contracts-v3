@@ -26,9 +26,7 @@ describe('TKAI', function () {
   describe('Deployment', function () {
     it('Should have the full balance ', async function () {
       const { tkai, owner } = await loadFixture(deployContract);
-      expect(await tkai.balanceOf(owner.address)).to.equal(
-        withDecimal('three hundred million')
-      );
+      expect(await tkai.balanceOf(owner.address)).to.equal(withDecimal('three hundred million'));
     });
 
     it('Check Decimals', async function () {
@@ -39,16 +37,14 @@ describe('TKAI', function () {
     it('Transfer 1M to address', async function () {
       const { tkai, alice } = await loadFixture(deployContract);
       await tkai.transfer(alice.address, withDecimal('one million'));
-      expect(await tkai.balanceOf(alice.address)).to.equal(
-        withDecimal('one million')
-      );
+      expect(await tkai.balanceOf(alice.address)).to.equal(withDecimal('one million'));
     });
 
     it('Alloance 1M to address', async function () {
       const { tkai, owner, alice } = await loadFixture(deployContract);
       await tkai.approve(alice.address, withDecimal('one million'));
       expect(await tkai.allowance(owner.address, alice.address)).to.equal(
-        withDecimal('one million')
+        withDecimal('one million'),
       );
     });
 

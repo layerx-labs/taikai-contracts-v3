@@ -52,9 +52,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   // Voting token
   string private _name;
   string private _symbol;
-  uint8 private _decimals;
+  uint8 private immutable _decimals;
   string private _version;
-  address private _settings;
+  address private immutable _settings;
 
   // Structs
   struct Point {
