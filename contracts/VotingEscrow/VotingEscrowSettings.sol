@@ -4,6 +4,8 @@ pragma solidity >=0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IVeTokenSettings.sol";
 
+error InvalidLockTime();
+
 /// @title VeTokenSettings
 /// @notice This contract defines settings for a VeToken.
 contract VeTokenSettings is Ownable, IVeTokenSettings {
@@ -20,7 +22,9 @@ contract VeTokenSettings is Ownable, IVeTokenSettings {
   /// @dev Only callable by the owner.
   /// @param locktime_ The new lock time.
   function setLockTime(int128 locktime_) external onlyOwner {
-    require(locktime_ >= 7 days, "locktime should be at least 1 week");
+    if (locktime_ < 7 days) {
+      revert InvalidLockTime();
+    }
     _locktime = locktime_;
   }
 
