@@ -1,62 +1,59 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import { STAGING_ACCOUNTS_ADDRESSES } from "../config/constants";
+import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import wordsToNumbers from 'words-to-numbers';
 
-describe("TKAI", function () {
-    
-  const THREE_HUNDRED_M = 300_000_000_000_000;
+describe('TKAI', function () {
+  /**
+   * @notice A function that receives a number's name, for example one, two, three, four, and return a string with 18 decimals
+   * for example, one => 1000000000000000000
+   * @param value The number's name
+   * @returns A string with 18 decimals
+   */
+  function withDecimal(value: string) {
+    return wordsToNumbers(value)?.toString().concat('0'.repeat(18)) ?? '0';
+  }
 
   async function deployContract() {
     // Contracts are deployed using the first signer/account by default
-    const [owner] = await ethers.getSigners();
-    const TKAI = await ethers.getContractFactory("TKAI");
-    const tkai = await TKAI.deploy("TAIKAI Token", "TKAI", owner.address);
-    return { owner, tkai };
+    const signers = await ethers.getSigners();
+    const [owner, alice, bob] = signers;
+    const TKAI = await ethers.getContractFactory('TKAI');
+    const tkai = await TKAI.deploy('TAIKAI Token', 'TKAI', owner.address);
+    return { owner, alice, bob, tkai };
   }
 
-  describe("Deployment", function () {
-    it("Should have the full balance ", async function () {
+  describe('Deployment', function () {
+    it('Should have the full balance ', async function () {
       const { tkai, owner } = await loadFixture(deployContract);
-      expect(await tkai.balanceOf(owner.address)).to.equal(THREE_HUNDRED_M);
+      expect(await tkai.balanceOf(owner.address)).to.equal(withDecimal('three hundred million'));
     });
 
-    it("Check Decimals", async function () {
+    it('Check Decimals', async function () {
       const { tkai } = await loadFixture(deployContract);
-      expect(await tkai.decimals()).to.equal(6);
+      expect(await tkai.decimals()).to.equal(18);
     });
 
-    it("Transfer 1M to address", async function () {
-      const { tkai } = await loadFixture(deployContract);
-      await tkai.transfer(STAGING_ACCOUNTS_ADDRESSES[1], 1_000_000_000_000);
-      expect(await tkai.balanceOf(STAGING_ACCOUNTS_ADDRESSES[1])).to.equal(
-        1_000_000_000_000
+    it('Transfer 1M to address', async function () {
+      const { tkai, alice } = await loadFixture(deployContract);
+      await tkai.transfer(alice.address, withDecimal('one million'));
+      expect(await tkai.balanceOf(alice.address)).to.equal(withDecimal('one million'));
+    });
+
+    it('Alloance 1M to address', async function () {
+      const { tkai, owner, alice } = await loadFixture(deployContract);
+      await tkai.approve(alice.address, withDecimal('one million'));
+      expect(await tkai.allowance(owner.address, alice.address)).to.equal(
+        withDecimal('one million'),
       );
     });
 
-    it("Alloance 1M to address", async function () {
-      const { tkai } = await loadFixture(deployContract);
-      await tkai.approve(STAGING_ACCOUNTS_ADDRESSES[1], 1_000_000_000_000);
-      expect(
-        await tkai.allowance(
-          STAGING_ACCOUNTS_ADDRESSES[0],
-          STAGING_ACCOUNTS_ADDRESSES[1]
-        )
-      ).to.equal(1_000_000_000_000);
-    });
+    it('Transfer Event', async function () {
+      const { tkai, owner, alice } = await loadFixture(deployContract);
 
-    it("Transfer Event", async function () {
-      const { tkai } = await loadFixture(deployContract);
-      await tkai.transfer(STAGING_ACCOUNTS_ADDRESSES[1], 1_000_000_000_000);
-      await expect(
-        tkai.transfer(STAGING_ACCOUNTS_ADDRESSES[1], 1_000_000_000_000)
-      )
-        .to.emit(tkai, "Transfer")
-        .withArgs(
-          STAGING_ACCOUNTS_ADDRESSES[0],
-          STAGING_ACCOUNTS_ADDRESSES[1],
-          1_000_000_000_000
-        );
+      await expect(tkai.transfer(alice.address, withDecimal('one million')))
+        .to.emit(tkai, 'Transfer')
+        .withArgs(owner.address, alice.address, withDecimal('one million'));
     });
   });
 });
