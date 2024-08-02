@@ -103,7 +103,9 @@ describe('Voting Escrow (veTKAI)', function () {
           contractMetadata.version,
           veTKAISettings.address,
         ),
-      ).to.revertedWithCustomError(VotingEscrow, 'ZeroAddressNotAllowed');
+      )
+        .to.revertedWithCustomError(VotingEscrow, 'ZeroAddressNotAllowed')
+        .withArgs('Token address cannot be zero address');
     });
 
     it('Create a Deposit', async function () {
@@ -135,10 +137,9 @@ describe('Voting Escrow (veTKAI)', function () {
       const amount = withDecimal('ten'); // 10 TKAI
       await tkai.connect(alice).approve(VeTKAI.address, amount);
 
-      await expect(VeTKAI.connect(alice).deposit(0)).to.be.revertedWithCustomError(
-        VeTKAI,
-        'InvalidDepositAmount',
-      );
+      await expect(VeTKAI.connect(alice).deposit(0))
+        .to.be.revertedWithCustomError(VeTKAI, 'InvalidDepositAmount')
+        .withArgs('Deposit amount must be greater than 0');
       expect(await VeTKAI.totalLocked()).to.equal(0);
       expect(await VeTKAI.balanceOf(alice.address)).to.equal(0);
     });
@@ -176,10 +177,9 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Increment Amount
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await expect(VeTKAI.connect(alice).deposit(amount)).to.be.revertedWithCustomError(
-        VeTKAI,
-        'DepositToExpiredLockNotAllowed',
-      );
+      await expect(VeTKAI.connect(alice).deposit(amount))
+        .to.be.revertedWithCustomError(VeTKAI, 'DepositToExpiredLockNotAllowed')
+        .withArgs('Cannot deposit to expired lock');
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(withDecimal('ten')));
     });
 
@@ -187,10 +187,9 @@ describe('Voting Escrow (veTKAI)', function () {
       const { alice, owner, veTKAISettings } = await loadFixture(deployContract);
       await veTKAISettings.setLockTime(daysToSeconds(730));
 
-      await expect(veTKAISettings.setLockTime(daysToSeconds(5))).to.be.revertedWithCustomError(
-        veTKAISettings,
-        'InvalidLockTime',
-      );
+      await expect(veTKAISettings.setLockTime(daysToSeconds(5)))
+        .to.be.revertedWithCustomError(veTKAISettings, 'InvalidLockTime')
+        .withArgs('Lock time must be at least 7 days');
       await expect(
         veTKAISettings.connect(alice).setLockTime(daysToSeconds(1095)),
       ).to.be.revertedWith('Ownable: caller is not the owner');
@@ -262,9 +261,9 @@ describe('Voting Escrow (veTKAI)', function () {
       const oldAliceVeTkaiBalance = await VeTKAI.balanceOf(alice.address);
 
       expect(oldAliceVeTkaiBalance).to.be.equal(0);
-      await expect(
-        VeTKAI.connect(alice).withdraw(withDecimal('eleven')),
-      ).to.be.revertedWithCustomError(VeTKAI, 'InsufficientBalance');
+      await expect(VeTKAI.connect(alice).withdraw(withDecimal('eleven')))
+        .to.be.revertedWithCustomError(VeTKAI, 'InsufficientBalance')
+        .withArgs('Insufficient balance to withdraw');
     });
 
     it('Check the initial, intermediate and final balance', async function () {

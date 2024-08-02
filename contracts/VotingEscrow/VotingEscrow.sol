@@ -9,13 +9,13 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IVeToken } from "./interfaces/IVeToken.sol";
 
-error ZeroAddressNotAllowed();
-error DecimalValueOutOfRange();
-error NoContractsAllowed();
-error InvalidDepositAmount();
-error DepositToExpiredLockNotAllowed();
-error NonDeposits();
-error InsufficientBalance();
+error ZeroAddressNotAllowed(string message);
+error DecimalValueOutOfRange(string message);
+error NoContractsAllowed(string message);
+error InvalidDepositAmount(string message);
+error DepositToExpiredLockNotAllowed(string message);
+error NonDeposits(string message);
+error InsufficientBalance(string message);
 
 /// @title VeToken
 /// @notice This contract represents a token with locking functionality.
@@ -88,7 +88,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     address settings_
   ) Ownable() ReentrancyGuard() {
     if (token_ == address(0)) {
-      revert ZeroAddressNotAllowed();
+      revert ZeroAddressNotAllowed("Token address cannot be zero address");
     }
     _token = IERC20(token_);
     _pointHistory[0] = Point({
@@ -100,7 +100,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
     _decimals = IERC20Metadata(token_).decimals();
     if (_decimals < 6 || _decimals > 18) {
-      revert DecimalValueOutOfRange();
+      revert DecimalValueOutOfRange("Decimals must be between 6 and 18");
     }
 
     _name = name_;
@@ -385,17 +385,17 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   /// @inheritdoc IVeToken
   function deposit(uint256 value_) external override nonReentrant {
     if (msg.sender != tx.origin) {
-      revert NoContractsAllowed();
+      revert NoContractsAllowed("Contracts are not allowed to deposit");
     }
 
     if (value_ <= 0) {
-      revert InvalidDepositAmount();
+      revert InvalidDepositAmount("Deposit amount must be greater than 0");
     }
     LockedBalance memory locked = _locked[msg.sender];
 
     if (locked.amount > 0) {
       if (locked.end <= block.timestamp) {
-        revert DepositToExpiredLockNotAllowed();
+        revert DepositToExpiredLockNotAllowed("Cannot deposit to expired lock");
       }
       _increaseAmount(value_);
     } else {
@@ -428,10 +428,10 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     LockedBalance memory locked = _locked[msg.sender];
     // Validate inputs
     if (locked.amount <= 0) {
-      revert NonDeposits();
+      revert NonDeposits("No deposits to withdraw");
     }
     if (uint256(uint128(locked.amount)) < amount_) {
-      revert InsufficientBalance();
+      revert InsufficientBalance("Insufficient balance to withdraw");
     }
 
     _totalLocked = _totalLocked - amount_;
