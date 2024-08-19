@@ -9,19 +9,16 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IVeToken } from "./interfaces/IVeToken.sol";
 
+error ZeroAddressNotAllowed();
+error DecimalValueOutOfRange();
+error NoContractsAllowed();
+error InvalidDepositAmount();
+error DepositToExpiredLockNotAllowed();
+error NonDeposits();
+error InsufficientBalance();
+
 /// @title VeToken
 /// @notice This contract represents a token with locking functionality.
-/// An ERC20 token that allocates users a virtual balance depending
-/// on the amount of tokens locked and their remaining lock duration. The
-/// virtual balance increases linearly with the remaining lock duration.
-/// @dev Builds on Curve Finance's original VotingEscrow implementation
-/// (see https://github.com/curvefi/curve-dao-contracts/blob/master/contracts/VotingEscrow.vy)
-/// and mStable's Solidity translation thereof
-/// (see https://github.com/mstable/mStable-contracts/blob/master/contracts/governance/IncentivisedVotingLockup.sol)
-/// Usage of this contract is not safe with all tokens, specifically:
-/// - Contract does not support tokens with maxSupply>2^128-10^[decimals]
-/// - Contract does not support fee-on-transfer tokens
-/// - Contract may be unsafe for tokens with decimals<6
 contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   using SafeERC20 for IERC20;
   // Shared Events
@@ -90,7 +87,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string memory version_,
     address settings_
   ) Ownable() ReentrancyGuard() {
-    require(token_ != address(0), "token_ cannot be zero address");
+    if (token_ == address(0)) {
+      revert ZeroAddressNotAllowed();
+    }
     _token = IERC20(token_);
     _pointHistory[0] = Point({
       bias: int128(0),
@@ -100,7 +99,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     });
 
     _decimals = IERC20Metadata(token_).decimals();
-    require(_decimals <= 18 && _decimals >= 6, "Decimals should be between 6 to 18");
+    if (_decimals < 6 || _decimals > 18) {
+      revert DecimalValueOutOfRange();
+    }
 
     _name = name_;
     _symbol = symbol_;
@@ -383,12 +384,19 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
   /// @inheritdoc IVeToken
   function deposit(uint256 value_) external override nonReentrant {
-    require(msg.sender == tx.origin, "No contracts allowed");
-    require(value_ > 0, "Value should be greater than 0");
+    if (msg.sender != tx.origin) {
+      revert NoContractsAllowed();
+    }
+
+    if (value_ <= 0) {
+      revert InvalidDepositAmount();
+    }
     LockedBalance memory locked = _locked[msg.sender];
 
     if (locked.amount > 0) {
-      require(locked.end > block.timestamp, "Cannot add to expired lock. Withdraw");
+      if (locked.end <= block.timestamp) {
+        revert DepositToExpiredLockNotAllowed();
+      }
       _increaseAmount(value_);
     } else {
       uint256 unlock_time = block.timestamp +
@@ -419,8 +427,12 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   function withdraw(uint256 amount_) external override nonReentrant {
     LockedBalance memory locked = _locked[msg.sender];
     // Validate inputs
-    require(locked.amount > 0, "No Deposits");
-    require(uint256(uint128(locked.amount)) >= amount_, "Insufficient balance");
+    if (locked.amount <= 0) {
+      revert NonDeposits();
+    }
+    if (uint256(uint128(locked.amount)) < amount_) {
+      revert InsufficientBalance();
+    }
 
     _totalLocked = _totalLocked - amount_;
     // Update lock
