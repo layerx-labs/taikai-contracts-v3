@@ -39,6 +39,11 @@ interface IVeToken is IERC20 {
   /// @return The end timestamp of the lock for the user.
   function lockedEnd(address addr) external view returns (uint256);
 
+  /// @notice Retrieves the amount of the lock for a user.
+  /// @param addr The address of the user.
+  /// @return The user's locked balance.
+  function lockedBalance(address addr) external view returns (int128);
+
   /// @notice Deposits tokens into the VeToken contract.
   /// @param _value The amount of tokens to deposit.
   /// @dev This emits the {Deposit} and {Supply} events.
