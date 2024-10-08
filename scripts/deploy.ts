@@ -41,11 +41,12 @@ async function main() {
   );
   await VeTKAI.deployed();
   console.log('\nVeTKAI Smart Contract deployed to:', VeTKAI.address);
+  process.exit(0);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
 main().catch((error) => {
   console.error(error);
-  process.exitCode = 1;
+  process.exit(1);
 });
