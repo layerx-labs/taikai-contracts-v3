@@ -424,6 +424,11 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   }
 
   /// @inheritdoc IVeToken
+  function lockedBalance(address addr_) external view override returns (int128) {
+    return _locked[addr_].amount;
+  }
+
+  /// @inheritdoc IVeToken
   function withdraw(uint256 amount_) external override nonReentrant {
     LockedBalance memory locked = _locked[msg.sender];
     // Validate inputs

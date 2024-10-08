@@ -164,6 +164,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(aliceBalance).to.equal(BigInt(withDecimal('million')) - BigInt(withDecimal('twenty')));
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(withDecimal('twenty')));
+      expect(await VeTKAI.lockedBalance(alice.address)).to.equal(BigInt(withDecimal('twenty')));
     });
 
     it('Fails incrementing the amount of an expired lock', async function () {
