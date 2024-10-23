@@ -43,11 +43,15 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
   error ZeroAddressNotAllowed();
   error DecimalValueOutOfRange();
-  error NoContractsAllowed();
   error InvalidDepositAmount();
-  error DepositToExpiredLockNotAllowed();
-  error NonDeposits();
-  error InsufficientBalance();
+  error BlockNumberTooHigh();
+  error NonExistingLock();
+  error LockExpired();
+  error LockNotExpired();
+  error WithdrawOldTokensFirst();
+  error CannotLockInThePast();
+  error LockingPeriodTooLong();
+  error CanOnlyIncreaseLockDuration();
 
   struct Point {
     int128 bias; // veToken value at this point
@@ -106,10 +110,14 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     string memory symbol_,
     string memory version_
   ) Ownable() ReentrancyGuard() {
-    require(token_ != address(0), "_token is zero address");
+    if (token_ == address(0)) {
+      revert ZeroAddressNotAllowed();
+    }
     _token = IERC20(token_);
     _decimals = IERC20Metadata(token_).decimals();
-    require(_decimals <= 18, "Exceeds max decimals");
+    if (_decimals > 18) {
+      revert DecimalValueOutOfRange();
+    }
     _name = name_;
     _symbol = symbol_;
     _version = version_;
@@ -186,7 +194,9 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
 
   /// @inheritdoc IVeToken
   function totalSupplyAt(uint256 blockNumber_) external view override returns (uint256) {
-    require(blockNumber_ <= block.number);
+    if (blockNumber_ > block.number) {
+      revert BlockNumberTooHigh();
+    }
     uint256 epoch = _epoch;
     uint256 targetEpoch = _findBlockEpoch(blockNumber_, epoch);
 
@@ -306,9 +316,15 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   /// @inheritdoc IVeToken
   function depositFor(address addr_, uint128 value_) external override nonReentrant {
     LockedBalance memory existingDeposit = _lockedBalances[addr_];
-    require(value_ > 0, "Cannot deposit 0 tokens");
-    require(existingDeposit.amount > 0, "No existing lock");
-    require(existingDeposit.end > block.timestamp, "Lock expired. Withdraw");
+    if (value_ <= 0) {
+      revert InvalidDepositAmount();
+    }
+    if (existingDeposit.amount <= 0) {
+      revert NonExistingLock();
+    }
+    if (existingDeposit.end <= block.timestamp) {
+      revert LockExpired();
+    }
 
     _depositFor(addr_, value_, 0, existingDeposit, ActionType.DEPOSIT_FOR);
   }
@@ -318,11 +334,18 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     address account = _msgSender();
     uint256 roundedUnlockTime = (unlockTime_ / WEEK) * WEEK;
     LockedBalance memory existingDeposit = _lockedBalances[account];
-
-    require(value_ > 0, "Cannot lock 0 tokens");
-    require(existingDeposit.amount == 0, "Withdraw old tokens first");
-    require(roundedUnlockTime > block.timestamp, "Cannot lock in the past");
-    require(roundedUnlockTime <= block.timestamp + MAX_TIME, "Voting lock can be 4 years max");
+    if (value_ <= 0) {
+      revert InvalidDepositAmount();
+    }
+    if (existingDeposit.amount != 0) {
+      revert WithdrawOldTokensFirst();
+    }
+    if (roundedUnlockTime <= block.timestamp) {
+      revert CannotLockInThePast();
+    }
+    if (roundedUnlockTime > block.timestamp + MIN_TIME) {
+      revert LockingPeriodTooLong();
+    }
     _depositFor(account, value_, roundedUnlockTime, existingDeposit, ActionType.CREATE_LOCK);
   }
 
@@ -331,9 +354,15 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     address account = _msgSender();
     LockedBalance memory existingDeposit = _lockedBalances[account];
 
-    require(value_ > 0, "Cannot deposit 0 tokens");
-    require(existingDeposit.amount > 0, "No existing lock found");
-    require(existingDeposit.end > block.timestamp, "Lock expired. Withdraw");
+    if (value_ <= 0) {
+      revert InvalidDepositAmount();
+    }
+    if (existingDeposit.amount <= 0) {
+      revert NonExistingLock();
+    }
+    if (existingDeposit.end <= block.timestamp) {
+      revert LockExpired();
+    }
 
     _depositFor(account, value_, 0, existingDeposit, ActionType.INCREASE_AMOUNT);
   }
@@ -344,10 +373,18 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     LockedBalance memory existingDeposit = _lockedBalances[account];
     uint256 roundedUnlockTime = (unlockTime_ / WEEK) * WEEK; // Locktime is rounded down to weeks
 
-    require(existingDeposit.amount > 0, "No existing lock found");
-    require(existingDeposit.end > block.timestamp, "Lock expired. Withdraw");
-    require(roundedUnlockTime > existingDeposit.end, "Can only increase lock duration");
-    require(roundedUnlockTime <= block.timestamp + MAX_TIME, "Voting lock can be 4 years max");
+    if (existingDeposit.amount <= 0) {
+      revert NonExistingLock();
+    }
+    if (existingDeposit.end <= block.timestamp) {
+      revert LockExpired();
+    }
+    if (roundedUnlockTime <= existingDeposit.end) {
+      revert CanOnlyIncreaseLockDuration();
+    }
+    if (roundedUnlockTime > block.timestamp + MIN_TIME) {
+      revert LockingPeriodTooLong();
+    }
 
     _depositFor(account, 0, roundedUnlockTime, existingDeposit, ActionType.INCREASE_LOCK_TIME);
   }
@@ -356,8 +393,13 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   function withdraw() external override nonReentrant {
     address account = _msgSender();
     LockedBalance memory existingDeposit = _lockedBalances[account];
-    require(existingDeposit.amount > 0, "No existing lock found");
-    require(block.timestamp >= existingDeposit.end, "Lock not expired.");
+    if (existingDeposit.amount <= 0) {
+      revert NonExistingLock();
+    }
+    if (existingDeposit.end > block.timestamp) {
+      revert LockNotExpired();
+    }
+
     uint128 value = existingDeposit.amount;
 
     LockedBalance memory oldDeposit = _lockedBalances[account];
@@ -394,8 +436,12 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   {
     actualUnlockTime = (expectedUnlockTime_ / WEEK) * WEEK;
 
-    require(actualUnlockTime > block.timestamp, "Cannot lock in the past");
-    require(actualUnlockTime <= block.timestamp + MAX_TIME, "Voting lock can be 4 years max");
+    if (actualUnlockTime <= block.timestamp) {
+      revert CannotLockInThePast();
+    }
+    if (actualUnlockTime > block.timestamp + MIN_TIME) {
+      revert LockingPeriodTooLong();
+    }
 
     int128 amt = int128(value_);
     slope = amt / I_YEAR;
