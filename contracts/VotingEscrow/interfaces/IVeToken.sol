@@ -1,70 +1,96 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.24;
-
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title IVeToken
 /// @notice Interface for VeToken functionality.
-interface IVeToken is IERC20 {
+interface IVeToken {
   /// @notice Retrieves the name of the token.
-  /// @return The name of the token.
   function name() external view returns (string memory);
 
   /// @notice Retrieves the symbol of the token.
-  /// @return The symbol of the token.
   function symbol() external view returns (string memory);
 
   /// @notice Retrieves the number of decimals for the token.
-  /// @return The number of decimals for the token.
   function decimals() external view returns (uint8);
 
-  /// @notice Retrieves the address of the VeTokenSettings contract.
-  /// @return The address of the VeTokenSettings contract.
-  function settings() external view returns (address);
-
   /// @notice Retrieves the version of the VeToken contract.
-  /// @return The version of the VeToken contract.
   function version() external view returns (string memory);
 
   /// @notice Retrieves the address of the Token contract.
-  /// @return The address of the Token contract.
-  function token() external view returns (address);
+  function token() external view returns (IERC20);
 
-  /// @notice Retrieves the total locked amount.
-  /// @return The total locked amount.
-  function totalLocked() external view returns (uint256);
+  /// @notice Retrieves the actual epoch.
+  function getEpoch() external view returns (uint256);
 
-  /// @notice Retrieves the end timestamp of the lock for a user.
-  /// @param addr The address of the user.
-  /// @return The end timestamp of the lock for the user.
-  function lockedEnd(address addr) external view returns (uint256);
+  /// @notice Retrieves the total of token Locked.
+  function totalTokenLocked() external view returns (uint256);
 
-  /// @notice Retrieves the amount of the lock for a user.
-  /// @param addr The address of the user.
-  /// @return The user's locked balance.
-  function lockedBalance(address addr) external view returns (int128);
+  /// @notice Retrieves the total of token Locked.
+  function lockedBalance(address addr_) external view returns (uint256);
 
-  /// @notice Deposits tokens into the VeToken contract.
-  /// @param _value The amount of tokens to deposit.
-  /// @dev This emits the {Deposit} and {Supply} events.
-  /// `_value` is (unsafely) downcasted from `uint256` to `int128`
-  /// and `_unlockTime` is (unsafely) downcasted from `uint256` to `uint96`
-  /// assuming that the values never reach the respective max values
-  function deposit(uint256 _value) external;
+  /// @notice Get timestamp when `addr`'s lock finishes
+  /// @param addr_ User wallet address
+  /// @return Timestamp when lock finishes
+  function lockedEnd(address addr_) external view returns (uint256);
 
-  /// @notice Withdraws the `_amount` of tokens from the VeToken contract.
-  /// @param _amount The amount of tokens to withdraw.
-  /// @dev This emits the {Withdraw} and {Supply} events.
-  function withdraw(uint256 _amount) external;
+  /// @notice Get the most recently recorded rate of voting power decrease for `addr`
+  /// @param addr_ The address to get the rate for
+  /// @return value of the slope
+  function getLastUserSlope(address addr_) external view returns (int128);
 
-  /// @notice Retrieves the balance of tokens for a specific address.
-  /// NOTE:The following ERC20/minime-compatible methods are not real balanceOf!!
-  /// They measure the weights for the purpose of voting, so they don't represent real coins.
-  /// @param addr The address of the account.
-  /// @return The balance of tokens (VotingPower) for the specified address.
-  function balanceOf(address addr) external view returns (uint256);
+  /// @notice Get the timestamp for checkpoint `idx` for `addr`
+  /// @param addr_ User wallet address
+  /// @param idx User epoch number
+  /// @return Epoch time of the checkpoint
+  function getUserPointHistoryTS(address addr_, uint256 idx) external view returns (uint256);
 
-  /// @notice Calculate current total supply of voting power
-  /// @return Current totalSupply
+  /// @notice Get the current voting power for a user
+  /// @param addr_ User wallet address
+  /// @return Voting power of user at current timestamp
+  function balanceOf(address addr_) external view returns (uint256);
+
+  /// @notice Get the voting power of `addr` at block `blockNumber`
+  /// @param addr_ User wallet address
+  /// @param blockNumber_ Block number to get voting power at
+  /// @return Voting power of user at block number
+  function balanceOfAt(address addr_, uint256 blockNumber_) external view returns (uint256);
+
+  /// @notice Calculate total voting power at current timestamp
+  /// @return Total voting power at current timestamp
   function totalSupply() external view returns (uint256);
+
+  /// @notice Calculate total voting power at a given block number in past
+  /// @param blockNumber_ Block number to calculate total voting power at
+  /// @return Total voting power at block number
+  function totalSupplyAt(uint256 blockNumber_) external view returns (uint256);
+
+  /// @notice Record global data to checkpoint
+  function checkpoint() external;
+
+  /// @notice Deposit and lock tokens for a user
+  /// @dev Anyone (even a smart contract) can deposit tokens for someone else, but
+  ///      cannot extend their locktime and deposit for a user that is not locked
+  /// @param addr_ Address of the user
+  /// @param value_ Amount of tokens to deposit
+  function depositFor(address addr_, uint128 value_) external;
+
+  /// @notice Deposit `value` for `msg.sender` and lock untill `unlockTime`
+  /// @param value_ Amount of tokens to deposit
+  /// @param unlockTime_ Time when the tokens will be unlocked
+  /// @dev unlockTime is rownded down to whole weeks
+  function createLock(uint128 value_, uint256 unlockTime_) external;
+
+  /// @notice Deposit `value` additional tokens for `msg.sender` without
+  ///         modifying the locktime
+  /// @param value_ Amount of tokens to deposit
+  function increaseAmount(uint128 value_) external;
+
+  /// @notice Extend the locktime of `msg.sender`'s tokens to `unlockTime`
+  /// @param unlockTime_ New locktime
+  function increaseUnlockTime(uint256 unlockTime_) external;
+
+  /// @notice Withdraw tokens for `msg.sender`
+  /// @dev Only possible if the locktime has expired
+  function withdraw() external;
 }
