@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.24;
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -16,8 +16,8 @@ import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions
 /**
  * @title Gauge contract
 
- * @author Chef Kenji <chef.kenji@bakerfi.xyz>
- * @notice Gauge contract for distributing rewards to LP Stakers
+ * @author Helder Vasconcelos <helder@layex.xyz>
+ * @notice Gauge contract for distributing rewards to ERC20 Staker
  *
  * it accepts deposits and withdrawals of staking tokens (ERC20) and distributes rewards to the stakers (ERC20)
  * When the user deposits the tokens receives Gauge tokens (ERC20)
