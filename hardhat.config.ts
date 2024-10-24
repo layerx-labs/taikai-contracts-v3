@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
 import 'hardhat-tracer';
@@ -34,12 +35,12 @@ const config: HardhatUserConfig = {
   contractSizer: {
     alphaSort: true,
     disambiguatePaths: false,
-    runOnCompile: true,
+    runOnCompile: false,
     strict: true,
     only: [],
   },
   gasReporter: {
-    enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
+    enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'false',
   },
   defaultNetwork: 'hardhat',
   networks: {

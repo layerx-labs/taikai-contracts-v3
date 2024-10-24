@@ -107,6 +107,12 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   /// @notice Address of the reward token
   IERC20 private immutable _rewardToken;
 
+  /// @notice Timestamp at which the reward rate starts
+  uint256 private immutable _rewardStartTimestamp;
+
+  /// @notice Timestamp at which the reward rate ends
+  uint256 private immutable _rewardEndTimestamp;
+
   /// @notice Mapping of a NFT ID their reward amount
   mapping(uint256 => uint256) private _rewards;
 
@@ -122,17 +128,13 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   /// @notice Reward tokens per token
   uint256 private _rewardPerTokenStored;
 
-  /// @notice Timestamp at which the reward rate starts
-  uint256 private _rewardStartTimestamp;
-
-  /// @notice Timestamp at which the reward rate ends
-  uint256 private _rewardEndTimestamp;
-
   /// @notice Mapping of user address to their lock details
   uint256 private _totalShares;
 
   /// @notice Mapping of NFT ID to lock details
   mapping(uint256 => Lock) public _locksPerNft;
+
+  uint256 private _totalLocked = 0;
 
   /// @notice Counter for NFT IDs
   uint256 private _nftIdCounter = 1;
@@ -160,7 +162,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
     //Validate reward duration
     if (duration == 0) revert Gauge__InvalidDuration();
     // Validate that we have enough balance to start the reward rate
-    if (balanceOf(address(this)) < initialRewardRate * duration) revert Gauge__InvalidBalance();
+    //if (balanceOf(address(this)) < initialRewardRate * duration) revert Gauge__InvalidBalance();
   }
 
   /**
@@ -233,6 +235,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
     // Mint the amount of tokens to the sender
     nftId = _mintNFT(receiver, amount, time);
 
+    _totalLocked += amount;
     // Transfer the amount of tokens from the sender to the gauge
     IERC20(_stakingToken).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -284,6 +287,8 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
     _totalShares -= _locksPerNft[nftId].shares;
 
     uint256 amount = _locksPerNft[nftId].amount;
+
+    _totalLocked -= amount;
 
     delete _locksPerNft[nftId];
 
@@ -426,7 +431,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @return The total locked amount
    */
   function getTotalLocked() external view returns (uint256) {
-    return IERC20(_stakingToken).balanceOf(address(this));
+    return _totalLocked;
   }
 
   /**
@@ -435,6 +440,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @return The lock
    */
   function getLock(uint256 nftId) external view returns (Lock memory) {
+    if (nftId < 1 || nftId >= _nftIdCounter) revert Gauge__InvalidNFT();
     return _locksPerNft[nftId];
   }
 
