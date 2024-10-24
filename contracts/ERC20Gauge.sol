@@ -12,9 +12,10 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { ERC721URIStorage } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
 /**
- * @title Gauge contract
+ * @title Gauge contract to distribute rewards to ERC20 Stakers
 
  * @author Helder Vasconcelos <helder@layex.xyz>
  * @notice Gauge contract for distributing rewards to ERC20 Staker
@@ -24,22 +25,53 @@ import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions
  * When the user withdraws the tokens the Gauge tokens are burned and the user receives the staking tokens
  * The rewards are distributed based on the Gauge tokens balance
  */
-contract ERC20Gauge is ERC721URIStorage, Ownable {
-
-  event Deposit(address indexed from, address indexed receiver, uint256 amount, uint256 time);
-  event Withdraw(address indexed owner, address indexed receiver, uint256 amount);
-
-  error Gauge__InvalidBalance();
-  error Gauge__InvalidToken();
-  error Gauge__InvalidRewardRate();
-  error Gauge__ZeroAmount();
-  error Gauge__InvalidDuration();
-  error Gauge__InvalidNFT();
-  error Gauge__NotOwner();
-  error Gauge__NotUnlocked();
+contract ERC20Gauge is ERC721Enumerable, Ownable {
 
   using SafeERC20 for IERC20;
+  /**
+   * @notice Event emitted when a deposit is made
+   */
+  event Deposit(address indexed from, address indexed receiver, uint256 amount, uint256 time);
+  /**
+   * @notice Event emitted when a withdraw is made
+   */
+  event Withdraw(address indexed owner, address indexed receiver, uint256 amount);
+  /**
+   * @notice Error emitted when the balance is invalid
+   */
+  error Gauge__InvalidBalance();
+  /**
+   * @notice Error emitted when the token is invalid
+   */
+  error Gauge__InvalidToken();
+  /**
+   * @notice Error emitted when the reward rate is invalid
+   */
+  error Gauge__InvalidRewardRate();
+  /**
+   * @notice Error emitted when the amount is zero
+   */
+  error Gauge__ZeroAmount();
+  /**
+   * @notice Error emitted when the duration is invalid
+   */
+  error Gauge__InvalidDuration();
+  /**
+   * @notice Error emitted when the NFT is invalid
+   */
+  error Gauge__InvalidNFT();
+  /**
+   * @notice Error emitted when the user is not the owner
+   */
+  error Gauge__NotOwner();
+  /**
+   * @notice Error emitted when the NFT is not unlocked
+   */
+  error Gauge__NotUnlocked();
 
+  /**
+   * @notice Struct to store the lock NFT Details
+   */
   struct Lock {
     uint256 amount;
     uint256 shares;
@@ -99,7 +131,6 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
   /// @notice Mapping of user address to their lock details
   uint256 private _totalShares;
 
-
   /// @notice Mapping of NFT ID to lock details
   mapping(uint256 => Lock) public _locksPerNft;
 
@@ -124,7 +155,8 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
     // Validate reward rate
     if (_rewardRate == 0) revert Gauge__InvalidRewardRate();
     // Validate token addresses
-    if (_stakingToken == IERC20(address(0)) || _rewardToken == IERC20(address(0))) revert Gauge__InvalidToken();
+    if (_stakingToken == IERC20(address(0)) || _rewardToken == IERC20(address(0)))
+      revert Gauge__InvalidToken();
     //Validate reward duration
     if (duration == 0) revert Gauge__InvalidDuration();
     // Validate that we have enough balance to start the reward rate
@@ -188,10 +220,15 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
    *
    * @param amount The amount of tokens to deposit.
    */
-  function deposit(address receiver, uint256 amount, uint256 time) external returns (uint256 nftId) {
+  function deposit(
+    address receiver,
+    uint256 amount,
+    uint256 time
+  ) external returns (uint256 nftId) {
     if (amount == 0) revert Gauge__ZeroAmount();
 
     uint256 tokenId = _nftIdCounter; // Get the current token ID
+
     updateReward(tokenId);
     // Mint the amount of tokens to the sender
     nftId = _mintNFT(receiver, amount, time);
@@ -202,6 +239,13 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
     emit Deposit(msg.sender, receiver, amount, time);
   }
 
+  /**
+   * @notice Internal function to mint a new NFT
+   * @param to The address to mint the NFT to
+   * @param amount The amount of tokens to mint
+   * @param time The duration of the lock
+   * @return The ID of the minted NFT
+   */
   function _mintNFT(address to, uint256 amount, uint256 time) internal returns (uint256) {
     uint256 tokenId = _nftIdCounter; // Get the current token ID
     _mint(to, tokenId); // Mint the NFT
@@ -215,40 +259,11 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
     lock.shares = shares;
     lock.boostingFactor = boostingFactor;
     lock.unlockTime = block.timestamp + fixedDuration;
-
-    _setTokenURI(tokenId, string(abi.encodePacked(
-      "{",
-      "\"amount\": ", uint2str(lock.amount), ",",
-      "\"shares\": ", uint2str(lock.shares), ",",
-      "\"boostingFactor\": ", uint2str(lock.boostingFactor), ",",
-      "\"unlockTime\": ", uint2str(lock.unlockTime),
-      "}"
-    )));
     _totalShares += shares;
 
     // Set the UR
     _nftIdCounter++; // Increment the token ID counter
     return tokenId; // Return the token ID
-  }
-
-  // Helper function to convert uint256 to string
-  function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
-    if (_i == 0) {
-      return "0";
-    }
-    uint256 j = _i;
-    uint256 len;
-    while (j != 0) {
-      len++;
-      j /= 10;
-    }
-    bytes memory bstr = new bytes(len);
-    uint256 k = len;
-    while (_i != 0) {
-      bstr[--k] = bytes1(uint8(48 + _i % 10));
-      _i /= 10;
-    }
-    return string(bstr);
   }
 
   /**
@@ -276,20 +291,30 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
     // Transfer the amount of tokens from the gauge to the sender
     IERC20(_stakingToken).safeTransfer(receiver, amount);
 
-    emit Withdraw(msg.sender,  receiver, amount);
+    emit Withdraw(msg.sender, receiver, amount);
   }
 
   /**
    * @dev Claims the earned rewards for the sender.
    */
 
-  function claimRewards(uint256 nftId) external {
+  function claimRewards(uint256 nftId) public {
     updateReward(nftId);
     address account = ownerOf(nftId);
     uint256 reward = _rewards[nftId];
     if (reward > 0) {
       _rewards[nftId] = 0;
       _rewardToken.safeTransfer(account, reward);
+    }
+  }
+  /**
+   * @notice Claims all rewards for a given address
+   * @param account The address to claim rewards for
+   */
+  function claimAllRewards(address account) public {
+    for (uint256 i = 0; i < balanceOf(account); i++) {
+      uint256 nftId = tokenOfOwnerByIndex(account, i);
+      claimRewards(nftId);
     }
   }
 
@@ -396,32 +421,121 @@ contract ERC20Gauge is ERC721URIStorage, Ownable {
     return _rewardToken;
   }
 
-  function getPosition(uint256 nftId) external view returns (Lock memory) {
+  /**
+   * @notice Returns the total locked amount
+   * @return The total locked amount
+   */
+  function getTotalLocked() external view returns (uint256) {
+    return IERC20(_stakingToken).balanceOf(address(this));
+  }
+
+  /**
+   * @notice Returns the lock for a given NFT ID
+   * @param nftId The ID of the NFT
+   * @return The lock
+   */
+  function getLock(uint256 nftId) external view returns (Lock memory) {
     return _locksPerNft[nftId];
   }
 
-  function getTotalLocked() external view returns (uint256) {
-      return IERC20(_stakingToken).balanceOf(address(this));
+  /**
+   * @notice Returns the locks for a given address
+   * @param user The address to get the locks for
+   * @return The locks
+   */
+  function getLocksForAddress(address user) external view returns (Lock[] memory) {
+    Lock[] memory locks = new Lock[](balanceOf(user));
+    for (uint256 i = 0; i < balanceOf(user); i++) {
+      uint256 nftId = tokenOfOwnerByIndex(user, i);
+      locks[i] = _locksPerNft[nftId];
+    }
+    return locks;
   }
 
-
+  /**
+   * @notice Returns the total number of locks for a given address
+   * @param user The address to get the total number of locks for
+   * @return The total number of locks
+   */
+  function getTotalLocksForAddress(address user) external view returns (uint256) {
+    return balanceOf(user);
+  }
+  /**
+   * @notice Returns the total number of locks
+   * @return The total number of locks
+   */
+  function getTotalLocks() external view returns (uint256) {
+    return totalSupply();
+  }
+  /**
+   * @notice Returns the boosting factor for a given lock duration
+   * @param lockDuration The duration of the lock
+   * @return The boosting factor
+   */
   function getBoostingFactor(uint256 lockDuration) public pure returns (uint256, uint256) {
-    if (lockDuration == 0)
-        return (ONE_HUNDRED_PERCENT, 0); // 1.0
-    if (lockDuration >= 0 && lockDuration < ONE_MONTH)
-        return (ONE_MONTH, ONE_TEN_PERCENT); // 1.1
+    if (lockDuration == 0) return (ONE_HUNDRED_PERCENT, 0); // 1.0
+    if (lockDuration >= 0 && lockDuration < ONE_MONTH) return (ONE_MONTH, ONE_TEN_PERCENT); // 1.1
     if (lockDuration >= ONE_MONTH && lockDuration < TWO_MONTHS)
       return (TWO_MONTHS, ONE_TWENTY_PERCENT); // 1.2
     if (lockDuration >= TWO_MONTHS && lockDuration < THREE_MONTHS)
-      return (THREE_MONTHS, ONE_THIRTY_PERCENT ); // 1.4
+      return (THREE_MONTHS, ONE_THIRTY_PERCENT); // 1.4
     if (lockDuration >= THREE_MONTHS && lockDuration < FOUR_MONTHS)
-      return (FOUR_MONTHS, ONE_FOURTY_PERCENT ); // 1.5
+      return (FOUR_MONTHS, ONE_FOURTY_PERCENT); // 1.5
     if (lockDuration >= FOUR_MONTHS && lockDuration < FIVE_MONTHS)
-      return (FIVE_MONTHS, ONE_FIFTY_PERCENT ); // 1.5
+      return (FIVE_MONTHS, ONE_FIFTY_PERCENT); // 1.5
     if (lockDuration >= FIVE_MONTHS && lockDuration < SIX_MONTHS)
-      return (SIX_MONTHS, ONE_SIXTY_PERCENT ); // 1.6
-    if (lockDuration == FOURTY_EIGHT_MONTHS)
-      return (FOURTY_EIGHT_MONTHS, ONE_SEVENTY_PERCENT); // 1.7
+      return (SIX_MONTHS, ONE_SIXTY_PERCENT); // 1.6
+    if (lockDuration == FOURTY_EIGHT_MONTHS) return (FOURTY_EIGHT_MONTHS, ONE_SEVENTY_PERCENT); // 1.7
     revert Gauge__InvalidDuration();
+  }
+
+  /**
+   * @notice Internal function to convert uint256 to string
+   * @param _i The uint256 to convert
+   * @return The string representation of the uint256
+   */
+  function _uint2str(uint256 _i) internal pure returns (string memory) {
+    if (_i == 0) {
+      return "0";
+    }
+    uint256 j = _i;
+    uint256 len;
+    while (j != 0) {
+      len++;
+      j /= 10;
+    }
+    bytes memory bstr = new bytes(len);
+    uint256 k = len;
+    while (_i != 0) {
+      bstr[--k] = bytes1(uint8(48 + (_i % 10)));
+      _i /= 10;
+    }
+    return string(bstr);
+  }
+  /**
+   * @notice Returns the URI of the NFT
+   * @param tokenId The ID of the NFT
+   * @return The URI of the NFT
+   */
+  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    Lock storage lock = _locksPerNft[tokenId];
+    return
+      string(
+        abi.encodePacked(
+          "{",
+          '"amount": ',
+          _uint2str(lock.amount),
+          ",",
+          '"shares": ',
+          _uint2str(lock.shares),
+          ",",
+          '"boostingFactor": ',
+          _uint2str(lock.boostingFactor),
+          ",",
+          '"unlockTime": ',
+          _uint2str(lock.unlockTime),
+          "}"
+        )
+      );
   }
 }
