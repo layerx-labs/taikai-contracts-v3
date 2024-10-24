@@ -91,11 +91,10 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   uint256 constant ONE_SEVENTY_PERCENT = 170;
 
   uint256 constant ONE_MONTH = 30 days;
-  uint256 constant TWO_MONTHS = 2 * ONE_MONTH;
   uint256 constant THREE_MONTHS = 3 * ONE_MONTH;
-  uint256 constant FOUR_MONTHS = 4 * ONE_MONTH;
-  uint256 constant FIVE_MONTHS = 5 * ONE_MONTH;
   uint256 constant SIX_MONTHS = 6 * ONE_MONTH;
+  uint256 constant TWELVE_MONTHS = 12 * ONE_MONTH;
+  uint256 constant TWENTY_FOUR_MONTHS = 24 * ONE_MONTH;
   uint256 constant FOURTY_EIGHT_MONTHS = 48 * ONE_MONTH;
 
   uint256 internal constant PRECISION = 10 ** 18;
@@ -479,19 +478,26 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @return The boosting factor
    */
   function getBoostingFactor(uint256 lockDuration) public pure returns (uint256, uint256) {
-    if (lockDuration == 0) return (ONE_HUNDRED_PERCENT, 0); // 1.0
-    if (lockDuration >= 0 && lockDuration < ONE_MONTH) return (ONE_MONTH, ONE_TEN_PERCENT); // 1.1
-    if (lockDuration >= ONE_MONTH && lockDuration < TWO_MONTHS)
-      return (TWO_MONTHS, ONE_TWENTY_PERCENT); // 1.2
-    if (lockDuration >= TWO_MONTHS && lockDuration < THREE_MONTHS)
-      return (THREE_MONTHS, ONE_THIRTY_PERCENT); // 1.4
-    if (lockDuration >= THREE_MONTHS && lockDuration < FOUR_MONTHS)
-      return (FOUR_MONTHS, ONE_FOURTY_PERCENT); // 1.5
-    if (lockDuration >= FOUR_MONTHS && lockDuration < FIVE_MONTHS)
-      return (FIVE_MONTHS, ONE_FIFTY_PERCENT); // 1.5
-    if (lockDuration >= FIVE_MONTHS && lockDuration < SIX_MONTHS)
-      return (SIX_MONTHS, ONE_SIXTY_PERCENT); // 1.6
-    if (lockDuration == FOURTY_EIGHT_MONTHS) return (FOURTY_EIGHT_MONTHS, ONE_SEVENTY_PERCENT); // 1.7
+    // 0x 1.0x Boost
+    if (lockDuration == 0) return (0, ONE_HUNDRED_PERCENT );
+    // 0 - 1 month 1.1x Boost
+    if (lockDuration >= 0 && lockDuration <= ONE_MONTH) return (ONE_MONTH, ONE_TEN_PERCENT);
+    // 1 - 3 months 1.2x Boost
+    if (lockDuration > ONE_MONTH && lockDuration <= THREE_MONTHS)
+      return (THREE_MONTHS, ONE_TWENTY_PERCENT);
+    // 3 - 6 months 1.3x Boost
+    if (lockDuration > THREE_MONTHS && lockDuration <= SIX_MONTHS)
+      return (SIX_MONTHS, ONE_THIRTY_PERCENT);
+    // 6 - 12 months 1.4x Boost
+    if (lockDuration > THREE_MONTHS && lockDuration <= TWELVE_MONTHS)
+      return (TWELVE_MONTHS, ONE_FOURTY_PERCENT);
+    // 12 - 24 months 1.5x Boost
+    if (lockDuration > TWELVE_MONTHS && lockDuration <= TWENTY_FOUR_MONTHS)
+      return (TWENTY_FOUR_MONTHS, ONE_FIFTY_PERCENT);
+    // 24 - 48 months 1.6x Boost
+    if (lockDuration > TWENTY_FOUR_MONTHS && lockDuration <= FOURTY_EIGHT_MONTHS)
+      return (FOURTY_EIGHT_MONTHS, ONE_SIXTY_PERCENT);
+    // Invalid duration
     revert Gauge__InvalidDuration();
   }
 
