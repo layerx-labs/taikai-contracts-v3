@@ -254,7 +254,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
 
     (uint256 fixedDuration, uint256 boostingFactor) = getBoostingFactor(time);
 
-    uint256 shares = (amount * boostingFactor) / PRECISION;
+    uint256 shares = (amount * boostingFactor) / BOOST_PRECISION;
 
     Lock storage lock = _locksPerNft[tokenId];
     lock.amount = amount;
@@ -276,10 +276,14 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   function withdraw(uint256 nftId, address receiver) external {
     // Validate the token ID
     if (nftId < 1 || nftId >= _nftIdCounter) revert Gauge__InvalidNFT();
+    // Validate the amount
+    if (_locksPerNft[nftId].amount == 0) revert Gauge__ZeroAmount();
     // Validate the owner of the token
     if (msg.sender != ownerOf(nftId)) revert Gauge__NotOwner();
     // Validate the unlock time
     if (_locksPerNft[nftId].unlockTime > block.timestamp) revert Gauge__NotUnlocked();
+
+
 
     updateReward(nftId);
 
