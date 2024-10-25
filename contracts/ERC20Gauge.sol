@@ -327,10 +327,11 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
    * @notice Claims all rewards for a given address
    * @param account The address to claim rewards for
    */
-  function claimAllRewards(address account) public nonReentrant {
-    for (uint256 i = 0; i < balanceOf(account); i++) {
+  function claimAllRewards(address account) public {
+    for (uint256 i = 0; i < balanceOf(account);) {
       uint256 nftId = tokenOfOwnerByIndex(account, i);
       claimRewards(nftId);
+      unchecked { i++; } // Increme
     }
   }
 
@@ -453,10 +454,12 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
    * @return The locks
    */
   function locksForAddress(address user) external view returns (Lock[] memory) {
-    Lock[] memory locks = new Lock[](balanceOf(user));
-    for (uint256 i = 0; i < balanceOf(user); i++) {
+    uint256 balance = balanceOf(user);
+    Lock[] memory locks = new Lock[](balance);
+    for (uint256 i = 0; i < balance;) {
       uint256 nftId = tokenOfOwnerByIndex(user, i);
       locks[i] = _locksPerNft[nftId];
+      unchecked { i++; } // Increment i without overflow checks
     }
     return locks;
   }
