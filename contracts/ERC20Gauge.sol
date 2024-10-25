@@ -125,7 +125,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   uint256 private _lastUpdateTime;
 
   /// @notice Reward tokens per token
-  uint256 private _rewardPerTokenStored;
+  uint256 private _rewardPerShareStored;
 
   /// @notice Mapping of user address to their lock details
   uint256 private _totalShares;
@@ -187,12 +187,12 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    *
    * @return The reward per token.
    */
-  function rewardPerToken() public view returns (uint256) {
+  function rewardPerShare() public view returns (uint256) {
     if (_totalShares == 0) {
-      return _rewardPerTokenStored;
+      return _rewardPerShareStored;
     }
     return
-      _rewardPerTokenStored +
+      _rewardPerShareStored +
       ((lastTimeRewardApplicable() - _lastUpdateTime) * _rewardRate * 1e18) /
       _totalShares;
   }
@@ -211,7 +211,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   function earned(uint256 nftId) public view returns (uint256) {
     Lock memory lock = _locksPerNft[nftId];
     return
-      (lock.shares * (rewardPerToken() - _nftsRewardPerTokenPaid[nftId])) /
+      (lock.shares * (rewardPerShare() - _nftsRewardPerTokenPaid[nftId])) /
       PRECISION +
       _rewards[nftId];
   }
@@ -303,12 +303,13 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   }
 
   /**
-   * @dev Claims the earned rewards for the sender.
+   * @dev Claims the earned rewards for the nft owner.
    */
 
   function claimRewards(uint256 nftId) public {
     updateReward(nftId);
     address account = ownerOf(nftId);
+
     uint256 reward = _rewards[nftId];
     if (reward > 0) {
       _rewards[nftId] = 0;
@@ -332,12 +333,12 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @param nftId The address of the account to update the reward for.
    */
   function updateReward(uint256 nftId) internal {
-    _rewardPerTokenStored = rewardPerToken();
+    _rewardPerShareStored = rewardPerShare();
     _lastUpdateTime = lastTimeRewardApplicable();
 
-    if (nftId == 0) {
+    if (nftId != 0) {
       _rewards[nftId] = earned(nftId);
-      _nftsRewardPerTokenPaid[nftId] = _rewardPerTokenStored;
+      _nftsRewardPerTokenPaid[nftId] = _rewardPerShareStored;
     }
   }
 
@@ -394,15 +395,6 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   }
 
   /**
-   * @dev Returns the stored reward per token.
-   *
-   * @return The stored reward per token.
-   */
-  function getRewardPerTokenStored() external view returns (uint256) {
-    return _rewardPerTokenStored;
-  }
-
-  /**
    * @dev Returns the last update time.
    *
    * @return The last update time.
@@ -425,7 +417,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    *
    * @return The reward token address.
    */
-  function getRewardToken() external view returns (IERC20) {
+  function rewardToken() external view returns (IERC20) {
     return _rewardToken;
   }
 
@@ -433,7 +425,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @notice Returns the total locked amount
    * @return The total locked amount
    */
-  function getTotalLocked() external view returns (uint256) {
+  function totalLocked() external view returns (uint256) {
     return _totalLocked;
   }
 
@@ -503,6 +495,15 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
       return (FOURTY_EIGHT_MONTHS, ONE_SIXTY_PERCENT);
     // Invalid duration
     revert Gauge__InvalidDuration();
+  }
+
+
+  function rewardPerToken() external view returns (uint256) {
+    return _rewardPerShareStored * _totalLocked / _totalShares;
+  }
+
+  function totalShares() external view returns (uint256) {
+    return _totalShares;
   }
 
   /**
