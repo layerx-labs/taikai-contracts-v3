@@ -2,6 +2,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { time } from '@nomicfoundation/hardhat-network-helpers';
+import { any } from 'hardhat/internal/core/params/argumentTypes';
 
 /**
  *   Test Suite for the ERC20Gauge contract
@@ -37,16 +38,17 @@ describe.only('ERC20Gauge', function () {
     it('Initialialization', async function () {
         const start = Math.floor((new Date().getTime()-2000) /1000);
         const { erc20Gauge, tkai, rewardRatePerSecond, duration, owner} = await loadFixture(deployContract);
-        expect(await erc20Gauge.getRewardRate()).to.equal(rewardRatePerSecond);
-        expect(await erc20Gauge.getStakingToken()).to.equal(tkai.address);
-        expect(await erc20Gauge.getRewardToken()).to.equal(tkai.address);
-        expect(await erc20Gauge.getRewardStartTimestamp()).to.greaterThanOrEqual(start);
-        expect(await erc20Gauge.getRewardEndTimestamp()).to.greaterThanOrEqual(BigInt(start) + BigInt(duration));
+        expect(await erc20Gauge.rewardRate()).to.equal(rewardRatePerSecond);
+        expect(await erc20Gauge.stakingToken()).to.equal(tkai.address);
+        expect(await erc20Gauge.rewardToken()).to.equal(tkai.address);
+        expect(await erc20Gauge.rewardStartTimestamp()).to.closeTo(start, 10);
+        expect(await erc20Gauge.rewardEndTimestamp()).to.closeTo(BigInt(start) + BigInt(duration), 20);
         expect(await erc20Gauge.owner()).to.equal(owner.address);
         expect(await erc20Gauge.totalSupply()).to.equal(0);
-        expect(await erc20Gauge.getTotalLocked()).to.equal(0);
-        expect(await erc20Gauge.getTotalLocks()).to.equal(0);
-        expect(await erc20Gauge.getLocksForAddress(owner.address)).to.deep.equal([]);
+        expect(await erc20Gauge.totalLocked()).to.equal(0);
+        expect(await erc20Gauge.lastUpdateTime()).to.equal(0);
+        expect(await erc20Gauge.totalLocks()).to.equal(0);
+        expect(await erc20Gauge.locksForAddress(owner.address)).to.deep.equal([]);
     });
 
 
@@ -59,10 +61,16 @@ describe.only('ERC20Gauge', function () {
         await erc20Gauge.deposit(owner.address, depositAmount, 0);
         expect(await erc20Gauge.balanceOf(owner.address)).to.equal(1);
         const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
-        const lock = await erc20Gauge.getLock(nftId);
+        const totalLocks = await erc20Gauge.totalLocksForAddress(owner.address);
+        const [lockReceived] = await erc20Gauge.locksForAddress(owner.address);
+        expect(lockReceived.amount).to.equal(depositAmount);
+        expect(lockReceived.shares).to.equal(depositAmount);
+        expect(lockReceived.boostingFactor).to.equal(100);
+        expect(lockReceived.unlockTime).to.closeTo(Math.floor(new Date().getTime()/1000), 10);
+        expect(totalLocks).to.equal(1);
+        const lock = await erc20Gauge.lock(nftId);
         // 10 TKAI
         const now = Math.floor(new Date().getTime()/1000);
-        expect(lock.shares).to.equal(depositAmount);
         expect(lock.unlockTime).to.lessThan(now+10);
         expect(lock.amount).to.equal(depositAmount);
     });
@@ -77,7 +85,7 @@ describe.only('ERC20Gauge', function () {
         await erc20Gauge.deposit(owner.address, depositAmount, oneMonth);
         expect(await erc20Gauge.balanceOf(owner.address)).to.equal(1);
         const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
-        const lock = await erc20Gauge.getLock(nftId);
+        const lock = await erc20Gauge.lock(nftId);
         const now = Math.floor(new Date().getTime()/1000);
         expect(lock.shares).to.equal(depositAmount*110n/100n);
         expect(lock.unlockTime).to.lessThan(now+oneMonth+10);
@@ -100,7 +108,7 @@ describe.only('ERC20Gauge', function () {
             );
 
         expect(await erc20Gauge.balanceOf(owner.address)).to.equal(0);
-        expect(await erc20Gauge.getLock(nftId)).to.deep.equal([0,0,0,0]);
+        expect(await erc20Gauge.lock(nftId)).to.deep.equal([0,0,0,0]);
     });
 
     it("Withdraw twice", async function () {
@@ -254,7 +262,11 @@ describe.only('ERC20Gauge', function () {
         const amountToClaim = await erc20Gauge.earned(nftId);
 
         const beforeBalance = await tkai.balanceOf(owner.address);
-        await erc20Gauge.claimRewards(nftId);
+        await expect(erc20Gauge.claimRewards(nftId)).
+            to.emit(erc20Gauge, "RewardsPaid")
+            .withArgs(nftId, owner.address, (value: bigint) => {
+                return value >= 0n && value <= BigInt(amountToClaim.toString()) * 101n / 100n;
+              });
         const afterBalance = await tkai.balanceOf(owner.address);
         const deltaBalance = Number(afterBalance) - Number(beforeBalance);
         expect(deltaBalance).to.closeTo(Number(amountToClaim), Number(10n**18n));
@@ -316,7 +328,7 @@ describe.only('ERC20Gauge', function () {
         expect(await erc20Gauge.balanceOf(bob.address)).to.equal(1);
         expect(await erc20Gauge.balanceOf(alice.address)).to.equal(1);
 
-        expect(await erc20Gauge.getTotalLocked()).to.equal(2n * depositAmount);
+        expect(await erc20Gauge.totalLocked()).to.equal(2n * depositAmount);
         time.increase(oneMonth);
         const nftId1 = await erc20Gauge.tokenOfOwnerByIndex(bob.address, 0);
         expect(await erc20Gauge.earned(nftId1)).to.closeTo(416666666666666666666666n/2n, 10n**18n);
@@ -348,9 +360,6 @@ describe.only('ERC20Gauge', function () {
         expect(BigInt(deltaBalance)).closeTo(416666666666666666666666n, 10n**18n);
     });
 
-    it("Test TokenURI", async function () {
-
-    });
 
     it("Test Reward left after 24 Months", async function () {
         const oneMonth = 3600*24*30;
@@ -369,13 +378,13 @@ describe.only('ERC20Gauge', function () {
     it("Duration to Boosting Factor Mapping", async function () {
         const { erc20Gauge} = await loadFixture(deployContract);
         const oneMonth = 3600*24*30;
-        expect(await erc20Gauge.getBoostingFactor(0)).to.deep.equal([0, 100]);
-        expect(await erc20Gauge.getBoostingFactor(1* oneMonth)).to.deep.equal([1* oneMonth, 110]);
-        expect(await erc20Gauge.getBoostingFactor(3* oneMonth)).to.deep.equal([3* oneMonth, 120]);
-        expect(await erc20Gauge.getBoostingFactor(6* oneMonth)).to.deep.equal([6* oneMonth, 130]);
-        expect(await erc20Gauge.getBoostingFactor(12* oneMonth)).to.deep.equal([12* oneMonth, 140]);
-        expect(await erc20Gauge.getBoostingFactor(24* oneMonth)).to.deep.equal([24* oneMonth, 150]);
-        expect(await erc20Gauge.getBoostingFactor(48* oneMonth)).to.deep.equal([48* oneMonth, 160]);
+        expect(await erc20Gauge.boostingFactor(0)).to.deep.equal([0, 100]);
+        expect(await erc20Gauge.boostingFactor(1* oneMonth)).to.deep.equal([1* oneMonth, 110]);
+        expect(await erc20Gauge.boostingFactor(3* oneMonth)).to.deep.equal([3* oneMonth, 120]);
+        expect(await erc20Gauge.boostingFactor(6* oneMonth)).to.deep.equal([6* oneMonth, 130]);
+        expect(await erc20Gauge.boostingFactor(12* oneMonth)).to.deep.equal([12* oneMonth, 140]);
+        expect(await erc20Gauge.boostingFactor(24* oneMonth)).to.deep.equal([24* oneMonth, 150]);
+        expect(await erc20Gauge.boostingFactor(48* oneMonth)).to.deep.equal([48* oneMonth, 160]);
     });
 
 
@@ -387,7 +396,7 @@ describe.only('ERC20Gauge', function () {
         expect(await erc20Gauge.totalShares()).to.equal(depositAmount);
         // Reward Rate per second
         const rewardRate = supplyAlocated/duration;
-        expect(await erc20Gauge.getRewardRate()).closeTo(rewardRate, 10n**18n);
+        expect(await erc20Gauge.rewardRate()).closeTo(rewardRate, 10n**18n);
         expect(await erc20Gauge.rewardPerShare()).closeTo(rewardRate/depositAmount, 10n**18n);
         await erc20Gauge.deposit(owner.address, depositAmount, 0);
         expect(await erc20Gauge.rewardPerShare()).closeTo(rewardRate/(depositAmount*2n), 10n**18n);
@@ -409,4 +418,99 @@ describe.only('ERC20Gauge', function () {
         const rewardRate = supplyAlocated/duration;
         expect(await erc20Gauge.rewardPerToken()).closeTo((rewardRate/depositAmount)*100n/110n, 10n**18n);
     })
+
+
+    it("NFT Metadata", async function () {
+        const { erc20Gauge, tkai,  owner} = await loadFixture(deployContract);
+        const depositAmount = 100n*10n**18n;
+        await tkai.approve(erc20Gauge.address, depositAmount);
+        await erc20Gauge.deposit(owner.address, depositAmount, 0);
+        const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
+        const tokenURI = await erc20Gauge.tokenURI(nftId);
+        const { amount, shares, boostingFactor, unlockTime } = JSON.parse(tokenURI);
+        expect(BigInt(amount)).to.equal(depositAmount);
+        expect(BigInt(shares)).to.equal(depositAmount);
+        expect(BigInt(boostingFactor)).to.equal(100n);
+        expect(BigInt(unlockTime)).closeTo(BigInt(new Date().getTime())/1000n, 10n);
+    });
+
+    it("Test Set Reward Rate - Single Deposit", async function () {
+        const oneMonth = 3600n*24n*30n;
+        const { erc20Gauge, tkai,  owner, rewardRatePerSecond} = await loadFixture(deployContract);
+        const depositAmount = 100n*10n**18n;
+        await tkai.approve(erc20Gauge.address, depositAmount);
+        await erc20Gauge.deposit(owner.address, depositAmount, 0);
+        await time.increase(oneMonth);
+        const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
+        expect(await erc20Gauge.earned(nftId)).to.closeTo(rewardRatePerSecond*oneMonth, 10n**18n);
+        await erc20Gauge.setRewardRate(rewardRatePerSecond*2n);
+        expect(await erc20Gauge.rewardRate()).to.equal(rewardRatePerSecond*2n);
+        await time.increase(oneMonth);
+        expect(await erc20Gauge.earned(nftId)).to.closeTo
+        (rewardRatePerSecond*oneMonth*3n, 10n**18n);
+        await erc20Gauge.setRewardRate(rewardRatePerSecond);
+        await time.increase(oneMonth);
+        expect(await erc20Gauge.rewardRate()).to.equal(rewardRatePerSecond);
+        expect(await erc20Gauge.earned(nftId)).to.closeTo(rewardRatePerSecond*oneMonth*4n, 10n**18n);
+    });
+
+
+    it("Test Set Reward Rate - Multiple Deposits", async function () {
+        const oneMonth = 3600n*24n*30n;
+        const { erc20Gauge, tkai,  bob, alice, rewardRatePerSecond} = await loadFixture(deployContract);
+        const depositAmount = 100n*10n**18n;
+        await tkai.approve(erc20Gauge.address, depositAmount*2n);
+        await erc20Gauge.deposit(bob.address, depositAmount, 0);
+        await erc20Gauge.deposit(alice.address, depositAmount, 0);
+        await time.increase(oneMonth);
+        const nftId = await erc20Gauge.tokenOfOwnerByIndex(bob.address, 0);
+        expect(await erc20Gauge.earned(nftId)).to.closeTo(rewardRatePerSecond*oneMonth/2n, 10n**18n);
+        await erc20Gauge.setRewardRate(rewardRatePerSecond*2n);
+        expect(await erc20Gauge.rewardRate()).to.equal(rewardRatePerSecond*2n);
+        await time.increase(oneMonth);
+        expect(await erc20Gauge.earned(nftId)).to.closeTo(rewardRatePerSecond*oneMonth*3n/2n, 10n**18n);
+    });
+
+    it("Test Set Reward Rate  - Fails when 0", async function () {
+        const { erc20Gauge} = await loadFixture(deployContract);
+        await expect(erc20Gauge.setRewardRate(0)).to.be.revertedWithCustomError(erc20Gauge, "Gauge__InvalidRewardRate");
+    });
+
+    it("Test Set Reward Rate - Fails when not owner", async function () {
+        const { erc20Gauge, bob} = await loadFixture(deployContract);
+        await expect(erc20Gauge.connect(bob).setRewardRate(1)).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+
+    it("Test Reward Rate Updated Event", async function () {
+        const { erc20Gauge, owner} = await loadFixture(deployContract);
+        await erc20Gauge.setRewardRate(1);
+        await expect(erc20Gauge.connect(owner).setRewardRate(2)).
+            to.emit(erc20Gauge, "RewardRateUpdated").withArgs(2);
+    });
+
+    it("Deposit Event", async function () {
+        const { erc20Gauge, tkai, owner} = await loadFixture(deployContract);
+        const depositAmount = 100n*10n**18n;
+        // Approve 100 TKAI
+        await tkai.approve(erc20Gauge.address, depositAmount);
+        // Deposit 100 TKAI
+        await expect(erc20Gauge.deposit(owner.address, depositAmount, 0)).
+            to.emit(erc20Gauge, "Deposit").withArgs(owner.address, owner.address, depositAmount, 0);
+    });
+
+    it("Withdraw Event", async function () {
+        const { erc20Gauge, tkai, owner} = await loadFixture(deployContract);
+        const depositAmount = 100n*10n**18n;
+        // Approve 100 TKAI
+        await tkai.approve(erc20Gauge.address, depositAmount);
+        // Deposit 100 TKAI
+        erc20Gauge.deposit(owner.address, depositAmount, 0);
+
+        const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
+        await expect(erc20Gauge.withdraw(nftId, owner.address))
+            .to.emit(erc20Gauge, "Withdraw")
+            .withArgs(owner.address, owner.address, depositAmount);
+    });
+
 })
