@@ -331,7 +331,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
     for (uint256 i = 0; i < balanceOf(account);) {
       uint256 nftId = tokenOfOwnerByIndex(account, i);
       claimRewards(nftId);
-      unchecked { i++; } // Increme
+      unchecked { ++i; } // Increme
     }
   }
 
@@ -459,7 +459,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
     for (uint256 i = 0; i < balance;) {
       uint256 nftId = tokenOfOwnerByIndex(user, i);
       locks[i] = _locksPerNft[nftId];
-      unchecked { i++; } // Increment i without overflow checks
+      unchecked { ++i; } // Increment i without overflow checks
     }
     return locks;
   }
