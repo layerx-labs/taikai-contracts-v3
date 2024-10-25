@@ -13,7 +13,7 @@ import { ERC721URIStorage } from "@openzeppelin/contracts/token/ERC721/extension
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-
+import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 /**
  * @title Gauge contract to distribute rewards to ERC20 Stakers
 
@@ -25,7 +25,7 @@ import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extension
  * When the user withdraws the tokens the Gauge tokens are burned and the user receives the staking tokens
  * The rewards are distributed based on the Gauge tokens balance
  */
-contract ERC20Gauge is ERC721Enumerable, Ownable {
+contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
 
   using SafeERC20 for IERC20;
   /**
@@ -96,7 +96,6 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
   uint256 constant ONE_FOURTY_PERCENT = 140;
   uint256 constant ONE_FIFTY_PERCENT = 150;
   uint256 constant ONE_SIXTY_PERCENT = 160;
-  uint256 constant ONE_SEVENTY_PERCENT = 170;
 
   uint256 constant ONE_MONTH = 30 days;
   uint256 constant THREE_MONTHS = 3 * ONE_MONTH;
@@ -233,7 +232,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
     address receiver,
     uint256 amount,
     uint256 time
-  ) external returns (uint256 nftId) {
+  ) external nonReentrant returns (uint256 nftId) {
     if (amount == 0) revert Gauge__ZeroAmount();
 
     uint256 tokenId = _nftIdCounter; // Get the current token ID
@@ -281,7 +280,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    *
    * @param nftId The NFT ID of the lock to withdraw.
    */
-  function withdraw(uint256 nftId, address receiver) external {
+  function withdraw(uint256 nftId, address receiver) external nonReentrant {
     // Validate the token ID
     if (nftId < 1 || nftId >= _nftIdCounter) revert Gauge__InvalidNFT();
     // Validate the amount
@@ -312,7 +311,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @dev Claims the earned rewards for the nft
    */
 
-  function claimRewards(uint256 nftId) public {
+  function claimRewards(uint256 nftId) public nonReentrant {
     updateReward(nftId);
     address account = ownerOf(nftId);
 
@@ -328,7 +327,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable {
    * @notice Claims all rewards for a given address
    * @param account The address to claim rewards for
    */
-  function claimAllRewards(address account) public {
+  function claimAllRewards(address account) public nonReentrant {
     for (uint256 i = 0; i < balanceOf(account); i++) {
       uint256 nftId = tokenOfOwnerByIndex(account, i);
       claimRewards(nftId);
