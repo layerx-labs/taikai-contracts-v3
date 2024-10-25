@@ -7,7 +7,7 @@ import { any } from 'hardhat/internal/core/params/argumentTypes';
 /**
  *   Test Suite for the ERC20Gauge contract
  */
-describe.only('ERC20Gauge', function () {
+describe('ERC20Gauge', function () {
 
     async function deployContract() {
         const [owner, alice, bob] = await ethers.getSigners();
