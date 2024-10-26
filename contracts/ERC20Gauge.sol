@@ -76,6 +76,10 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
    * @notice Error emitted when the NFT is not unlocked
    */
   error Gauge__NotUnlocked();
+  /**
+   * @notice Error emitted when the address is invalid
+   */
+  error Gauge__InvalidAddress();
 
   /**
    * @notice Struct to store the lock NFT Details
@@ -145,10 +149,14 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
   /// @notice Counter for NFT IDs
   uint256 private _nftIdCounter = 1;
 
+  /// @notice Address of the founding account
+  address private _fundingAccount;
+
   constructor(
     string memory name,
     string memory symbol,
     address owner,
+    address cfundingAccount,
     IERC20 cStakingToken,
     IERC20 cRewardToken,
     uint256 initialRewardRate,
@@ -160,6 +168,7 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
     _rewardRate = initialRewardRate;
     _rewardStartTimestamp = block.timestamp;
     _rewardEndTimestamp = block.timestamp + duration;
+    _fundingAccount = cfundingAccount;
     // Validate reward rate
     if (_rewardRate == 0) revert Gauge__InvalidRewardRate();
     // Validate token addresses
@@ -203,7 +212,10 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
       ((lastTimeRewardApplicable() - _lastUpdateTime) * _rewardRate * 1e18) /
       _totalShares;
   }
-
+  /**
+   * @dev Returns the last time the reward is applicable
+   * @return The last time the reward is applicable
+   */
   function lastTimeRewardApplicable() public view returns (uint256) {
     return Math.min(block.timestamp, _rewardEndTimestamp);
   }
@@ -246,6 +258,21 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
     IERC20(_stakingToken).safeTransferFrom(msg.sender, address(this), amount);
 
     emit Deposit(msg.sender, receiver, amount, time);
+  }
+  /**
+   * @notice Returns the funding account
+   * @return The funding account
+   */
+  function fundingAccount() external view returns (address) {
+    return _fundingAccount;
+  }
+  /**
+   * @notice Sets the funding account
+   * @param newFundingAccount The new funding account
+   */
+  function setFundingAccount(address newFundingAccount) external onlyOwner {
+    if (newFundingAccount == address(0)) revert Gauge__InvalidAddress();
+    _fundingAccount = newFundingAccount;
   }
 
   /**
@@ -310,15 +337,14 @@ contract ERC20Gauge is ERC721Enumerable, Ownable, ReentrancyGuard {
   /**
    * @dev Claims the earned rewards for the nft
    */
-
   function claimRewards(uint256 nftId) public nonReentrant {
     updateReward(nftId);
     address account = ownerOf(nftId);
-
     uint256 reward = _rewards[nftId];
     if (reward > 0) {
       _rewards[nftId] = 0;
-      _rewardToken.safeTransfer(account, reward);
+      // Transfer the reward from the funding account to the account that receives the rewards
+      _rewardToken.safeTransferFrom(_fundingAccount, account, reward);
       emit RewardsPaid(nftId, account, reward);
     }
   }

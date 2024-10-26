@@ -2,7 +2,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { time } from '@nomicfoundation/hardhat-network-helpers';
-import { any } from 'hardhat/internal/core/params/argumentTypes';
+
 
 /**
  *   Test Suite for the ERC20Gauge contract
@@ -10,7 +10,7 @@ import { any } from 'hardhat/internal/core/params/argumentTypes';
 describe('ERC20Gauge', function () {
 
     async function deployContract() {
-        const [owner, alice, bob] = await ethers.getSigners();
+        const [owner, alice, bob, fundingAccount] = await ethers.getSigners();
         const TKAI = await ethers.getContractFactory('TKAI');
         const tkai = await TKAI.deploy('TAIKAI Token', 'TKAI', owner.address);
         const ERC20Gauge = await ethers.getContractFactory('ERC20Gauge');
@@ -22,17 +22,18 @@ describe('ERC20Gauge', function () {
             "TKAI Staking NFT",
             "sTKAI",
             owner.address,
+            fundingAccount.address,
             tkai.address,
             tkai.address,
             rewardRatePerSecond,
             // 48 months
             3600 * 24 * 30*48,
-
         );;
-        await tkai.transfer(erc20Gauge.address, supplyAlocated);
+        await tkai.transfer(fundingAccount.address, supplyAlocated);
+        await tkai.connect(fundingAccount).approve(erc20Gauge.address, supplyAlocated);
         await tkai.transfer(alice.address, 10000000n * 10n**18n);
         await tkai.transfer(bob.address, 10000000n * 10n**18n);
-        return { owner, alice, bob, erc20Gauge, rewardRatePerSecond , duration, tkai, supplyAlocated};
+        return { owner, alice, bob, erc20Gauge, rewardRatePerSecond , duration, tkai, supplyAlocated, fundingAccount};
     };
 
     it('Initialialization', async function () {
@@ -511,6 +512,24 @@ describe('ERC20Gauge', function () {
         await expect(erc20Gauge.withdraw(nftId, owner.address))
             .to.emit(erc20Gauge, "Withdraw")
             .withArgs(owner.address, owner.address, depositAmount);
+    });
+
+    it("Funding Account", async function () {
+        const { erc20Gauge, fundingAccount, owner} = await loadFixture(deployContract);
+        expect(await erc20Gauge.fundingAccount()).to.equal(fundingAccount.address);
+        await erc20Gauge.setFundingAccount(owner.address);
+        expect(await erc20Gauge.fundingAccount()).to.equal(owner.address);
+    });
+
+    it("Funding Account - Fails when 0", async function () {
+        const { erc20Gauge} = await loadFixture(deployContract);
+        const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+        await expect(erc20Gauge.setFundingAccount(ZERO_ADDRESS)).to.be.revertedWithCustomError(erc20Gauge, "Gauge__InvalidAddress");
+    });
+
+    it("Funding Account - Fails when not owner", async function () {
+        const { erc20Gauge, bob} = await loadFixture(deployContract);
+        await expect(erc20Gauge.connect(bob).setFundingAccount(bob.address)).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
 })
