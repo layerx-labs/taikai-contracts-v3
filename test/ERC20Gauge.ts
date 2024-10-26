@@ -3,9 +3,9 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { time } from '@nomicfoundation/hardhat-network-helpers';
 
-
 /**
  *   Test Suite for the ERC20Gauge contract
+ *   @group ERC20Gauge
  */
 describe('ERC20Gauge', function () {
 
@@ -52,7 +52,6 @@ describe('ERC20Gauge', function () {
         expect(await erc20Gauge.locksForAddress(owner.address)).to.deep.equal([]);
     });
 
-
     it("Deposit 100TKAI No Lock and check the NFT ", async function () {
         const { erc20Gauge, tkai, owner} = await loadFixture(deployContract);
         const depositAmount = 100n*10n**18n;
@@ -91,7 +90,6 @@ describe('ERC20Gauge', function () {
         expect(lock.shares).to.equal(depositAmount*110n/100n);
         expect(lock.unlockTime).to.lessThan(now+oneMonth+10);
     });
-
 
     it("Deposit and Withdraw", async function () {
         const { erc20Gauge, tkai, owner} = await loadFixture(deployContract);
@@ -222,7 +220,6 @@ describe('ERC20Gauge', function () {
         expect(await erc20Gauge.earned(nftId)).to.closeTo(416666666666666666666666n, 10n**17n);
     });
 
-
     it("Earned at 48 months", async function () {
         const oneMonth = 3600*24*30;
         const { erc20Gauge, tkai, owner} = await loadFixture(deployContract);
@@ -248,7 +245,6 @@ describe('ERC20Gauge', function () {
         const nftId = await erc20Gauge.tokenOfOwnerByIndex(owner.address, 0);
         expect(await erc20Gauge.earned(nftId)).to.closeTo(20000000n*10n**18n, 10n**18n);
     });
-
 
     it("Claim Rewards at 1Month", async function () {
         const oneMonth = 3600*24*30;
@@ -292,8 +288,6 @@ describe('ERC20Gauge', function () {
         expect(deltaBalance).to.closeTo(Number(20000000n*10n**18n), Number(10n**18n));
         expect( await erc20Gauge.earned(nftId)).to.closeTo(0, 10n**17n);
     });
-
-
 
     it("Multiple Deposits - Single Address", async function () {
         const oneMonth = 3600*24*30;
@@ -361,7 +355,6 @@ describe('ERC20Gauge', function () {
         expect(BigInt(deltaBalance)).closeTo(416666666666666666666666n, 10n**18n);
     });
 
-
     it("Test Reward left after 24 Months", async function () {
         const oneMonth = 3600*24*30;
         const { erc20Gauge, supplyAlocated} = await loadFixture(deployContract);
@@ -387,7 +380,6 @@ describe('ERC20Gauge', function () {
         expect(await erc20Gauge.boostingFactor(24* oneMonth)).to.deep.equal([24* oneMonth, 150]);
         expect(await erc20Gauge.boostingFactor(48* oneMonth)).to.deep.equal([48* oneMonth, 160]);
     });
-
 
     it("RewardPerShare Dynamic Ratio", async function () {
         const depositAmount = 100n*10n**18n;
@@ -419,7 +411,6 @@ describe('ERC20Gauge', function () {
         const rewardRate = supplyAlocated/duration;
         expect(await erc20Gauge.rewardPerToken()).closeTo((rewardRate/depositAmount)*100n/110n, 10n**18n);
     })
-
 
     it("NFT Metadata", async function () {
         const { erc20Gauge, tkai,  owner} = await loadFixture(deployContract);
@@ -455,7 +446,6 @@ describe('ERC20Gauge', function () {
         expect(await erc20Gauge.earned(nftId)).to.closeTo(rewardRatePerSecond*oneMonth*4n, 10n**18n);
     });
 
-
     it("Test Set Reward Rate - Multiple Deposits", async function () {
         const oneMonth = 3600n*24n*30n;
         const { erc20Gauge, tkai,  bob, alice, rewardRatePerSecond} = await loadFixture(deployContract);
@@ -481,7 +471,6 @@ describe('ERC20Gauge', function () {
         const { erc20Gauge, bob} = await loadFixture(deployContract);
         await expect(erc20Gauge.connect(bob).setRewardRate(1)).to.be.revertedWith("Ownable: caller is not the owner");
     });
-
 
     it("Test Reward Rate Updated Event", async function () {
         const { erc20Gauge, owner} = await loadFixture(deployContract);
