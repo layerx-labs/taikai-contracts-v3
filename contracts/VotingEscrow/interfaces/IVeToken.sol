@@ -24,7 +24,7 @@ interface IVeToken {
   function getEpoch() external view returns (uint256);
 
   /// @notice Retrieves the total of token Locked.
-  function totalTokenLocked() external view returns (uint256);
+  function totalLocked() external view returns (uint256);
 
   /// @notice Retrieves the total of token Locked.
   function lockedBalance(address addr_) external view returns (uint256);

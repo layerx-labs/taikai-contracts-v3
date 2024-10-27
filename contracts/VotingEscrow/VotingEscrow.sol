@@ -37,8 +37,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     DEPOSIT_FOR,
     CREATE_LOCK,
     INCREASE_AMOUNT,
-    INCREASE_LOCK_TIME,
-    INITIATE_COOLDOWN
+    INCREASE_LOCK_TIME
   }
 
   error ZeroAddressNotAllowed();
@@ -51,6 +50,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   error WithdrawOldTokensFirst();
   error CannotLockInThePast();
   error LockingPeriodTooLong();
+  error LockingPeriodTooShort();
   error CanOnlyIncreaseLockDuration();
 
   struct Point {
@@ -80,7 +80,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   uint256 private constant MIN_TIME = 1 * WEEK;
   uint256 private constant MULTIPLIER = 10 ** 18;
   int128 private constant I_YEAR = int128(uint128(365 days));
-  int128 private constant I_MIN_TIME = int128(uint128(WEEK));
 
   /// @dev Mappings to store global point information
   uint256 private _epoch;
@@ -99,6 +98,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     uint256 value,
     uint256 indexed locktime
   );
+
   event GlobalCheckpoint(address caller, uint256 epoch);
   event Withdraw(address indexed provider, uint256 value, uint256 ts);
   event Supply(uint256 prevSupply, uint256 supply);
@@ -151,7 +151,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   }
 
   /// @inheritdoc IVeToken
-  function totalTokenLocked() external view override returns (uint256) {
+  function totalLocked() external view override returns (uint256) {
     return _totalTokenLocked;
   }
 
@@ -332,7 +332,6 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   /// @inheritdoc IVeToken
   function createLock(uint128 value_, uint256 unlockTime_) external override nonReentrant {
     address account = _msgSender();
-    uint256 roundedUnlockTime = (unlockTime_ / WEEK) * WEEK;
     LockedBalance memory existingDeposit = _lockedBalances[account];
     if (value_ <= 0) {
       revert InvalidDepositAmount();
@@ -340,12 +339,8 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     if (existingDeposit.amount != 0) {
       revert WithdrawOldTokensFirst();
     }
-    if (roundedUnlockTime <= block.timestamp) {
-      revert CannotLockInThePast();
-    }
-    if (roundedUnlockTime > block.timestamp + MIN_TIME) {
-      revert LockingPeriodTooLong();
-    }
+    uint256 roundedUnlockTime = _validateLockTime(unlockTime_);
+
     _depositFor(account, value_, roundedUnlockTime, existingDeposit, ActionType.CREATE_LOCK);
   }
 
@@ -382,7 +377,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
     if (roundedUnlockTime <= existingDeposit.end) {
       revert CanOnlyIncreaseLockDuration();
     }
-    if (roundedUnlockTime > block.timestamp + MIN_TIME) {
+    if (roundedUnlockTime > block.timestamp + MAX_TIME) {
       revert LockingPeriodTooLong();
     }
 
@@ -434,14 +429,7 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
       uint256 providedUnlockTime // expected unlock time
     )
   {
-    actualUnlockTime = (expectedUnlockTime_ / WEEK) * WEEK;
-
-    if (actualUnlockTime <= block.timestamp) {
-      revert CannotLockInThePast();
-    }
-    if (actualUnlockTime > block.timestamp + MIN_TIME) {
-      revert LockingPeriodTooLong();
-    }
+    actualUnlockTime = _validateLockTime(expectedUnlockTime_);
 
     int128 amt = int128(value_);
     slope = amt / I_YEAR;
@@ -662,6 +650,21 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
       }
     }
     return min;
+  }
+
+  function _validateLockTime(uint256 locktime_) internal view returns (uint256) {
+    uint256 roundedUnlockTime = (locktime_ / WEEK) * WEEK;
+
+    if (roundedUnlockTime <= block.timestamp) {
+      revert CannotLockInThePast();
+    }
+    if (roundedUnlockTime > block.timestamp + MAX_TIME) {
+      revert LockingPeriodTooLong();
+    }
+    if (roundedUnlockTime < block.timestamp + MIN_TIME) {
+      revert LockingPeriodTooShort();
+    }
+    return roundedUnlockTime;
   }
 
   function _findGlobalTimestampEpoch(uint256 ts_) internal view returns (uint256) {
