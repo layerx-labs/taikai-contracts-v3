@@ -12,7 +12,6 @@ async function main() {
   const owner = accounts[0].address;
   const kai = await TKAI.deploy('TAIKAI Token', 'TKAI', owner);
   await kai.deployed();
-  console.log('TKAI Token deployed to:', kai.address);
 
   for (const account of accounts) {
     if (account.address != owner) {
@@ -25,21 +24,14 @@ async function main() {
   const POP = await ethers.getContractFactory('POP');
   const pop = await POP.deploy('TAIKAI PoP', 'POP', owner);
   await pop.deployed();
-  console.log('POP Smart Contract deployed to:', pop.address);
-
-  // Deploy VeTKAI Settings
-  const veTKAISettings = await (await ethers.getContractFactory('VeTokenSettings')).deploy();
 
   // Deploy VeTKAI Contract
   const VotingEscrow = await ethers.getContractFactory('VeToken');
-  const VeTKAI = await VotingEscrow.deploy(
-    kai.address,
-    'TAIKAI Voting Escrow',
-    'veTKAI',
-    '1.0.0',
-    veTKAISettings.address,
-  );
+  const VeTKAI = await VotingEscrow.deploy(kai.address, 'TAIKAI Voting Escrow', 'veTKAI', '1.0.0');
   await VeTKAI.deployed();
+
+  console.log('TKAI Token deployed to:', kai.address);
+  console.log('POP Smart Contract deployed to:', pop.address);
   console.log('\nVeTKAI Smart Contract deployed to:', VeTKAI.address);
 }
 
