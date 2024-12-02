@@ -43,7 +43,7 @@ const config: HardhatUserConfig = {
     enabled: !process.env.TRACER_ENABLED || process.env.TRACER_ENABLED === 'false',
   },
   gasReporter: {
-    enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'false',
+    enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
   },
   defaultNetwork: 'hardhat',
   networks: {
