@@ -40,16 +40,19 @@ async function main() {
   const duration = 3600n * 24n * 30n * 48n;
   const rewardRatePerSecond = supplyAlocated / duration;
   const gauge = await ERC20Gauge.deploy(
-    'TKAI Gauge Distribution',
-    'TKAI-Gauge',
-    owner,
-    owner,
-    kai.address,
-    kai.address,
-    rewardRatePerSecond,
-    3600 * 24 * 30 * 48,
+    'Staking TKAI Reward Position',
+    'sTKAI-REW-POS',
+    owner, // Gauge owner
+    owner, // Funding account
+    kai.address, // Staking token TKAI
+    kai.address, // Reward token TKAI
+    rewardRatePerSecond, // Reward rate per second
+    3600 * 24 * 30 * 48,  // Duration in seconds 48 months
   );
   await gauge.deployed();
+  // Approve the gauge to spend the TKAI tokens allocated to rewards
+  await kai.approve(gauge.address, supplyAlocated);
+
   console.log('ERC20Gauge deployed to:', gauge.address);
 }
 
