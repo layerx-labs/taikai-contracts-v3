@@ -40,7 +40,7 @@ const config: HardhatUserConfig = {
     only: [],
   },
   tracer: {
-    enabled: !process.env.TRACER_ENABLED || process.env.TRACER_ENABLED === 'false',
+    enabled: !process.env.TRACER_ENABLED || process.env.TRACER_ENABLED === 'true',
   },
   gasReporter: {
     enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
