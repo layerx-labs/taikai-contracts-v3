@@ -66,15 +66,20 @@ describe('Voting Escrow (veTKAI)', function () {
   }
 
   function daysToSeconds(days: number) {
-    return Math.floor(86400 * days);
+    return Math.round(86400 * days);
   }
 
   function secondsToDays(seconds: number) {
     return (seconds - Date.now() / 1000) / 60 / 60 / 24;
   }
 
-  function makeUnlockTime(days: number) {
-    return daysToSeconds(days) + Math.floor(Date.now() / 1000);
+  async function makeUnlockTime(days: number) {
+    const blockNumber = await ethers.provider.getBlockNumber();
+    // Fetch the block details
+    const block = await ethers.provider.getBlock(blockNumber);
+    const nextBlockTimestamp = block.timestamp + 1;
+    await time.setNextBlockTimestamp(nextBlockTimestamp);
+    return daysToSeconds(days) + nextBlockTimestamp;
   }
 
   describe('Deployment', function () {
@@ -110,7 +115,7 @@ describe('Voting Escrow (veTKAI)', function () {
       const amount = withDecimal('one hundred and twenty'); // 120 TKAI
       await tkai.connect(alice).approve(VeTKAI.address, amount);
 
-      await expect(VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)))
+      await expect(VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)))
         .to.emit(VeTKAI, 'UserCheckpoint')
         .to.emit(VeTKAI, 'Supply')
         .to.emit(tkai, 'Transfer');
@@ -123,8 +128,6 @@ describe('Voting Escrow (veTKAI)', function () {
       ).valueWithDecimals;
 
       const totalSupply = (await VeTKAI['totalSupply()']()).toBigInt();
-
-      console.log({ totalSupply });
 
       expect(aliceTkaiBalance.toBigInt()).to.equal(BigInt(withDecimal('million')) - BigInt(amount));
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(amount));
@@ -142,7 +145,7 @@ describe('Voting Escrow (veTKAI)', function () {
       await tkai.connect(alice).approve(VeTKAI.address, amount);
 
       await expect(
-        VeTKAI.connect(alice).createLock(0, makeUnlockTime(365)),
+        VeTKAI.connect(alice).createLock(0, await makeUnlockTime(365)),
       ).to.be.revertedWithCustomError(VeTKAI, 'InvalidDepositAmount');
 
       expect(await VeTKAI.totalLocked()).to.equal(0);
@@ -160,7 +163,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       const amount = withDecimal('ten'); // 10 TKAI
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365));
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365));
       const aliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
       const aliceVeTkaiBalanceFormatted = formatCurrencyValue(
         aliceVeTkaiBalance.toBigInt(),
@@ -168,11 +171,11 @@ describe('Voting Escrow (veTKAI)', function () {
       ).valueWithDecimals;
 
       await expect(
-        VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)),
+        VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)),
       ).to.be.revertedWithCustomError(VeTKAI, 'WithdrawOldTokensFirst');
 
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(amount));
-      expect(aliceVeTkaiBalanceFormatted).to.closeTo(10, ERROR_FACTOR);
+      expect(aliceVeTkaiBalanceFormatted).to.be.equal(10);
     });
 
     it('Fails validating the locktime', async function () {
@@ -182,11 +185,11 @@ describe('Voting Escrow (veTKAI)', function () {
       await tkai.connect(alice).approve(VeTKAI.address, amount);
 
       await expect(
-        VeTKAI.connect(alice).createLock(amount, makeUnlockTime(6)),
+        VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(6)),
       ).to.be.revertedWithCustomError(VeTKAI, 'LockingPeriodTooShort');
 
       await expect(
-        VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365 * 4 + 7)),
+        VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365 * 4 + 1)), // 4 years + 1 day
       ).to.be.revertedWithCustomError(VeTKAI, 'LockingPeriodTooLong');
     });
 
@@ -197,7 +200,7 @@ describe('Voting Escrow (veTKAI)', function () {
       await tkai.connect(alice).approve(VeTKAI.address, amount);
       await tkai.connect(bob).approve(VeTKAI.address, amount);
 
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365));
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365));
       const previousAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
       await VeTKAI.connect(bob).depositFor(alice.address, amount);
       const afterAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
@@ -225,7 +228,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       // Increment Amount
       await tkai.connect(alice).approve(VeTKAI.address, amount);
@@ -234,10 +237,7 @@ describe('Voting Escrow (veTKAI)', function () {
       const aliceBalance = await tkai.balanceOf(alice.address);
       const aliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
 
-      expect(formatCurrencyValue(aliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.closeTo(
-        20,
-        ERROR_FACTOR,
-      );
+      expect(formatCurrencyValue(aliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.equal(20);
       expect(aliceBalance).to.equal(BigInt(withDecimal('million')) - BigInt(withDecimal('twenty')));
       expect(await VeTKAI.lockedBalance(alice.address)).to.equal(BigInt(withDecimal('twenty')));
     });
@@ -248,12 +248,12 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       // Increment Locktime
 
       const previousLockedEnd = await VeTKAI.lockedEnd(alice.address);
-      await VeTKAI.connect(alice).increaseUnlockTime(makeUnlockTime(730)); // increment locktime to 730 days
+      await VeTKAI.connect(alice).increaseUnlockTime(await makeUnlockTime(730)); // increment locktime to 730 days
       const afterLockedEnd = await VeTKAI.lockedEnd(alice.address);
       const aliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
 
@@ -272,7 +272,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
       await time.increase(daysToSeconds(366));
 
       // Increment Amount
@@ -288,18 +288,17 @@ describe('Voting Escrow (veTKAI)', function () {
     it('Estimates Deposit', async function () {
       const { VeTKAI } = await loadFixture(deployContract);
       const amount = withDecimal('ten'); // 10 TKAI
-      const locktime = makeUnlockTime(365);
+      const locktime = await makeUnlockTime(365);
 
       const { initialVeTokenBalance, actualUnlockTime, providedUnlockTime, bias } =
         await VeTKAI.estimateDeposit(amount, locktime);
 
-      expect(formatCurrencyValue(initialVeTokenBalance.toBigInt()).valueWithDecimals).to.closeTo(
+      expect(formatCurrencyValue(initialVeTokenBalance.toBigInt()).valueWithDecimals).to.be.equal(
         10,
-        ERROR_FACTOR,
       );
-      expect(formatCurrencyValue(bias.toBigInt()).valueWithDecimals).to.closeTo(10, ERROR_FACTOR);
+      expect(formatCurrencyValue(bias.toBigInt()).valueWithDecimals).to.be.equal(10);
       expect(providedUnlockTime).to.equal(locktime);
-      expect(secondsToDays(Number(actualUnlockTime))).to.be.closeTo(secondsToDays(locktime), 6);
+      expect(secondsToDays(Number(actualUnlockTime))).to.be.equal(secondsToDays(locktime));
     });
 
     it('Withdraw', async function () {
@@ -309,7 +308,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(730)); // Lock for 730 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(730)); // Lock for 730 days
       const oldAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
 
       await time.increase(daysToSeconds(730));
@@ -338,13 +337,12 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       const oldAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
 
-      expect(formatCurrencyValue(oldAliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
+      expect(formatCurrencyValue(oldAliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.equal(
         10,
-        ERROR_FACTOR,
       );
       await expect(VeTKAI.connect(alice).withdraw()).to.be.revertedWithCustomError(
         VeTKAI,
@@ -403,19 +401,47 @@ describe('Voting Escrow (veTKAI)', function () {
       ).to.be.equal(0);
     });
 
+    it('Tries Minimum Lock', async function () {
+      const { tkai, VeTKAI, alice } = await loadFixture(deployContract);
+
+      const amount = withDecimal('thousand'); // 1000 TKAI
+      // Create Lock
+      await tkai.connect(alice).approve(VeTKAI.address, amount);
+
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(7)); // Lock for 365 days
+      const oldAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
+
+      await time.increase(daysToSeconds(3.5));
+      const aliceBalanceAfterThreeDays = await VeTKAI['balanceOf(address)'](alice.address); // After 3.5 days
+
+      await time.increase(daysToSeconds(7));
+      const aliceBalanceSevenDays = await VeTKAI['balanceOf(address)'](alice.address); // After 1 week
+
+      expect(formatCurrencyValue(oldAliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
+        19.18,
+        0.25,
+      );
+      expect(
+        formatCurrencyValue(aliceBalanceAfterThreeDays.toBigInt()).valueWithDecimals,
+      ).to.be.closeTo(9.59, 0.25);
+      expect(formatCurrencyValue(aliceBalanceSevenDays.toBigInt()).valueWithDecimals).to.be.equal(
+        0,
+      );
+    });
+
     it('Should present the totalSupply as the total voting power', async function () {
       const { tkai, VeTKAI, alice, bob, charlie } = await loadFixture(deployContract);
 
       const amount = withDecimal('ten'); // 10 TKAI
 
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       await tkai.connect(bob).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(bob).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(bob).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       await tkai.connect(charlie).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(charlie).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(charlie).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       const oldAliceVeTkaiBalance = await VeTKAI['balanceOf(address)'](alice.address);
       const oldBobVeTkaiBalance = await VeTKAI['balanceOf(address)'](bob.address);
@@ -435,10 +461,7 @@ describe('Voting Escrow (veTKAI)', function () {
       expect(formatCurrencyValue(charlieBalanceAfterOneYear.toBigInt()).valueWithDecimals).equal(0);
       expect(formatCurrencyValue(newTotalSupply.toBigInt()).valueWithDecimals).to.be.equal(0);
 
-      expect(formatCurrencyValue(oldTotalSupply.toBigInt()).valueWithDecimals).to.be.closeTo(
-        30,
-        ERROR_FACTOR,
-      );
+      expect(formatCurrencyValue(oldTotalSupply.toBigInt()).valueWithDecimals).to.be.equal(30);
       expect(formatCurrencyValue(oldTotalSupply.toBigInt()).valueWithDecimals).to.be.equal(
         formatCurrencyValue(
           oldAliceVeTkaiBalance.toBigInt() +
@@ -455,7 +478,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       // Create Lock
       await tkai.connect(alice).approve(VeTKAI.address, amount);
-      await VeTKAI.connect(alice).createLock(amount, makeUnlockTime(365)); // Lock for 365 days
+      await VeTKAI.connect(alice).createLock(amount, await makeUnlockTime(365)); // Lock for 365 days
 
       const aliceStartBalance = await VeTKAI['balanceOf(address)'](alice.address);
       await time.increase(daysToSeconds(365));
@@ -463,10 +486,7 @@ describe('Voting Escrow (veTKAI)', function () {
       await time.increase(daysToSeconds(365));
       const aliceBalanceAfterTwoYear = await VeTKAI['balanceOf(address)'](alice.address);
 
-      expect(formatCurrencyValue(aliceStartBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
-        988,
-        6,
-      );
+      expect(formatCurrencyValue(aliceStartBalance.toBigInt()).valueWithDecimals).to.be.equal(1000);
       expect(
         formatCurrencyValue(aliceBalanceAfterOneYear.toBigInt()).valueWithDecimals,
       ).to.be.equal(0n);

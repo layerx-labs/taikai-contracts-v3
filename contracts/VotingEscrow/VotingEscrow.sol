@@ -652,18 +652,16 @@ contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   }
 
   function _validateLockTime(uint256 locktime_) internal view returns (uint256) {
-    uint256 roundedUnlockTime = (locktime_ / WEEK) * WEEK;
-
-    if (roundedUnlockTime <= block.timestamp) {
+    if (locktime_ <= block.timestamp) {
       revert CannotLockInThePast();
     }
-    if (roundedUnlockTime > block.timestamp + MAX_TIME) {
+    if (locktime_ > block.timestamp + MAX_TIME) {
       revert LockingPeriodTooLong();
     }
-    if (roundedUnlockTime < block.timestamp + MIN_TIME) {
+    if (locktime_ < block.timestamp + MIN_TIME) {
       revert LockingPeriodTooShort();
     }
-    return roundedUnlockTime;
+    return locktime_;
   }
 
   function _findGlobalTimestampEpoch(uint256 ts_) internal view returns (uint256) {
