@@ -41,6 +41,24 @@ async function main() {
   );
   await VeTKAI.deployed();
   console.log('\nVeTKAI Smart Contract deployed to:', VeTKAI.address);
+
+  // Deploy ERC20Gauge Contract
+  const ERC20Gauge = await ethers.getContractFactory('ERC20Gauge');
+  const supplyAlocated = 20000000n * 10n ** 18n;
+  const duration = 3600n * 24n * 30n * 48n;
+  const rewardRatePerSecond = supplyAlocated / duration;
+  const gauge = await ERC20Gauge.deploy(
+    'TKAI Gauge Distribution',
+    'TKAI-Gauge',
+    owner,
+    owner,
+    kai.address,
+    kai.address,
+    rewardRatePerSecond,
+    3600 * 24 * 30 * 48,
+  );
+  await gauge.deployed();
+  console.log('ERC20Gauge deployed to:', gauge.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

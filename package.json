@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "compile": "npx hardhat compile",
-    "test": "npx hardhat test --trace-error --network hardhat",
+    "test": "npx hardhat test --network hardhat",
     "solhint": "npx hardhat check",
     "doc": "npx hardhat docgen",
     "test:gas": "REPORT_GAS=true npx hardhat test",

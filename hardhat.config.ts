@@ -30,14 +30,17 @@ const config: HardhatUserConfig = {
   docgen: {
     path: './docs',
     clear: true,
-    runOnCompile: true,
+    runOnCompile: false,
   },
   contractSizer: {
     alphaSort: true,
     disambiguatePaths: false,
-    runOnCompile: true,
+    runOnCompile: false,
     strict: true,
     only: [],
+  },
+  tracer: {
+    enabled: !process.env.TRACER_ENABLED || process.env.TRACER_ENABLED === 'true',
   },
   gasReporter: {
     enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
