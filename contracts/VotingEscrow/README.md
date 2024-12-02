@@ -80,6 +80,8 @@ where:
 6. Users can extend their lock period to increase voting power
 7. Users can add more tokens to increase voting power
 8. Tokens cannot be withdrawn until the lock period expires
+
+
 ## Contract Functions
 
 ```
