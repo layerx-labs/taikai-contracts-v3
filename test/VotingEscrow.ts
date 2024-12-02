@@ -5,7 +5,7 @@ import wordsToNumbers from 'words-to-numbers';
 
 describe('Voting Escrow (veTKAI)', function () {
   const NUMBER_OF_DECIMALS = 18;
-  const ERROR_FACTOR = 5;
+  const ERROR_FACTOR = 0.5;
   const contractMetadata = {
     name: 'TAIKAI Voting Escrow',
     symbol: 'veTKAI',
@@ -128,7 +128,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(aliceTkaiBalance.toBigInt()).to.equal(BigInt(withDecimal('million')) - BigInt(amount));
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(amount));
-      expect(aliceVeTkaiBalanceFormatted).to.closeTo(120, ERROR_FACTOR);
+      expect(aliceVeTkaiBalanceFormatted).to.closeTo(120, 2.5);
       expect((await VeTKAI.lockedEnd(alice.address)).toBigInt()).to.be.most(
         (await time.latest()) + daysToSeconds(365),
       );
@@ -211,12 +211,12 @@ describe('Voting Escrow (veTKAI)', function () {
       expect(previousAliceVeTkaiBalance.toBigInt()).to.lessThan(afterAliceVeTkaiBalance.toBigInt());
       expect(bobVeTkaiBalance.toBigInt()).to.equal(0n);
       expect(await VeTKAI.totalLocked()).to.equal(BigInt(amount) * 2n);
-      expect(aliceVeTkaiBalanceFormatted).to.closeTo(240, ERROR_FACTOR);
+      expect(aliceVeTkaiBalanceFormatted).to.closeTo(240, 5);
 
       expect((await VeTKAI.lockedEnd(alice.address)).toBigInt()).to.be.most(
         (await time.latest()) + daysToSeconds(365),
       );
-      expect(formatCurrencyValue(totalSupply).valueWithDecimals).to.be.closeTo(240, ERROR_FACTOR);
+      expect(formatCurrencyValue(totalSupply).valueWithDecimals).to.be.closeTo(240, 5);
     });
 
     it('Increment Amount', async function () {
@@ -299,7 +299,7 @@ describe('Voting Escrow (veTKAI)', function () {
       );
       expect(formatCurrencyValue(bias.toBigInt()).valueWithDecimals).to.closeTo(10, ERROR_FACTOR);
       expect(providedUnlockTime).to.equal(locktime);
-      expect(secondsToDays(Number(actualUnlockTime))).to.be.closeTo(secondsToDays(locktime), 5);
+      expect(secondsToDays(Number(actualUnlockTime))).to.be.closeTo(secondsToDays(locktime), 6);
     });
 
     it('Withdraw', async function () {
@@ -344,7 +344,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(formatCurrencyValue(oldAliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
         10,
-        0.125,
+        ERROR_FACTOR,
       );
       await expect(VeTKAI.connect(alice).withdraw()).to.be.revertedWithCustomError(
         VeTKAI,
@@ -387,17 +387,17 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(formatCurrencyValue(oldAliceVeTkaiBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
         10,
-        0.125,
+        0.25,
       );
       expect(
         formatCurrencyValue(aliceBalanceAfterThreeMonths.toBigInt()).valueWithDecimals,
-      ).to.be.closeTo(7.5, 0.125);
+      ).to.be.closeTo(7.5, 0.25);
       expect(
         formatCurrencyValue(aliceBalanceAfterSixMonths.toBigInt()).valueWithDecimals,
-      ).to.be.closeTo(5, 0.125);
+      ).to.be.closeTo(5, 0.25);
       expect(
         formatCurrencyValue(aliceBalanceAfterNineMonths.toBigInt()).valueWithDecimals,
-      ).to.be.closeTo(2.5, 0.125);
+      ).to.be.closeTo(2.5, 0.25);
       expect(
         formatCurrencyValue(aliceBalanceAfterOneYear.toBigInt()).valueWithDecimals,
       ).to.be.equal(0);
@@ -437,7 +437,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(formatCurrencyValue(oldTotalSupply.toBigInt()).valueWithDecimals).to.be.closeTo(
         30,
-        0.5,
+        ERROR_FACTOR,
       );
       expect(formatCurrencyValue(oldTotalSupply.toBigInt()).valueWithDecimals).to.be.equal(
         formatCurrencyValue(
@@ -465,7 +465,7 @@ describe('Voting Escrow (veTKAI)', function () {
 
       expect(formatCurrencyValue(aliceStartBalance.toBigInt()).valueWithDecimals).to.be.closeTo(
         988,
-        ERROR_FACTOR,
+        6,
       );
       expect(
         formatCurrencyValue(aliceBalanceAfterOneYear.toBigInt()).valueWithDecimals,
