@@ -29,7 +29,6 @@ import { IVeToken } from "./interfaces/IVeToken.sol";
 # 0 +--------+------> time
 #       maxtime (4 years?)
 */
-
 contract VeToken is IVeToken, Ownable, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
