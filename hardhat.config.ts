@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
 import 'hardhat-tracer';
@@ -29,14 +30,17 @@ const config: HardhatUserConfig = {
   docgen: {
     path: './docs',
     clear: true,
-    runOnCompile: true,
+    runOnCompile: false,
   },
   contractSizer: {
     alphaSort: true,
     disambiguatePaths: false,
-    runOnCompile: true,
+    runOnCompile: false,
     strict: true,
     only: [],
+  },
+  tracer: {
+    enabled: !process.env.TRACER_ENABLED || process.env.TRACER_ENABLED === 'true',
   },
   gasReporter: {
     enabled: !process.env.REPORT_GAS || process.env.REPORT_GAS === 'true',
@@ -49,6 +53,12 @@ const config: HardhatUserConfig = {
       },
       blockGasLimit: 20995106510310,
       initialBaseFeePerGas: 7,
+    },
+    base: {
+      url: process.env.WEB3_RPC_BASE_URL ||
+        `https://rpc.ankr.com/base/${process.env.ANKR_API_KEY}`,
+      chainId: 8453,
+      accounts: [PRIVATE_KEY],
     },
     local: {
       chainId: 1337,
@@ -66,6 +76,7 @@ const config: HardhatUserConfig = {
       url: 'https://polygon-rpc.com',
       accounts: [PRIVATE_KEY],
     },
+
   },
 };
 
