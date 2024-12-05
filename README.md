@@ -1,12 +1,13 @@
 # TAIKAI V3 - Smart Contracts
 
 * **TKAI.sol** - Fungible Token used on the Hackathon Platform
-* **POP.sol** - Proof of Participation NFT 
+* **POP.sol** - Proof of Participation NFT
+* **VeToken.sol** - Voting Escrow Contract
 
-## How to Compile 
+## How to Compile
 
 ```shell
-npm install 
+npm install
 npm run compile
 ```
 
@@ -16,12 +17,12 @@ npm run compile
 npm run test
 ```
 
-## How to Deploy 
+## How to Deploy
 
 The Script deploys the TKAI and POP smart contracts on a EVM network
 
 ```shell
 # network = "vp" | "eden" | "gaia" | "eva" | "atena"
 npm install
-npm run deploy:<network> 
+npm run deploy:<network>
 ```
