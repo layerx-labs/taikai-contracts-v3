@@ -5,7 +5,13 @@ import { INonfungiblePositionManager } from "./INonfungiblePositionManager.sol";
 import { ICLPool } from "./pool/ICLPool.sol";
 
 interface ILiquidityGauge {
-  event Deposit(address indexed user, uint256 indexed tokenId, uint128 indexed liquidityToStake);
+  event Deposit(
+    address indexed user,
+    address indexed receiver,
+    uint128 indexed liquidityToStake,
+    uint256 nftId,
+    uint256 time
+  );
   event Withdraw(address indexed user, uint256 indexed tokenId, uint128 indexed liquidityToStake);
   event ClaimRewards(address indexed from, uint256 amount);
 
@@ -40,7 +46,11 @@ interface ILiquidityGauge {
   /// @notice Used to deposit a CL position into the gauge
   /// @notice Allows the user to receive emissions instead of fees
   /// @param tokenId The tokenId of the position
-  function deposit(uint256 tokenId) external;
+  function deposit(
+    address receiver,
+    uint256 tokenId,
+    uint256 time
+  ) external returns (uint256 nftId);
 
   /// @notice Used to withdraw a CL position from the gauge
   /// @notice Allows the user to receive fees instead of emissions
