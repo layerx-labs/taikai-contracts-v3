@@ -11,6 +11,11 @@ export const STAGING_NETWORKS = {
         url: "https://eth-eden.taikai.network",
         accounts: STAGING_ACCOUNTS_PKEYS
       },
+      edenBase: {
+        chainId: 8453,
+        url: "https://eth-eden.taikai.network",
+        accounts: STAGING_ACCOUNTS_PKEYS
+      },
       gaia: {
         chainId: 1602,
         url: "https://eth-gaia.taikai.network",
